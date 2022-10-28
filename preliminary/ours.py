@@ -1,9 +1,138 @@
 ##
+import math
+from collections import defaultdict
+
+import yake
+from nltk import sent_tokenize
+from nltk.corpus import stopwords
+from itertools import product
+import spacy
+
+from utils import *
+
+sr_threshold = 0.95
+dtype = "imdb"
+start_sample_idx = 0
+num_sample = 30
+stop = set(stopwords.words('english'))
+
+# load dataset
+corpus = load_dataset("imdb")['train']['text']
+result_dir = f"results/ours-{dtype}-{start_sample_idx}-{start_sample_idx+num_sample}.txt"
+
+cover_texts = corpus[start_sample_idx:start_sample_idx+num_sample]
+cover_texts = [t.replace("\n", " ") for t in cover_texts]
+cover_texts = preprocess_imdb(cover_texts)
+nlp = spacy.load("en_core_web_sm")
+match = total = 0
+num_bits = 0
+num_words = 0
+
+for c_idx, cover_text in enumerate(cover_texts):
+    sentences = sent_tokenize(cover_text)
+    for s_idx, sen in enumerate(sentences):
+
+        # c_idx, s_idx = 0, 1
+        # sentences = sent_tokenize(cover_texts[c_idx])
+        # sen = sentences[s_idx]
+
+        print(f"{c_idx} {s_idx}")
+        print(sen)
+        punct_removed = sen.translate(str.maketrans(dict.fromkeys(string.punctuation)))
+        word_count = len([i for i in punct_removed.split(" ") if i not in stop])
+        num_words += word_count
+        num_kwd = max(1, int(0.15 * word_count))
+        # pick keywords
+        yake_kwargs = {'lan': "en",
+                       "n": 1,
+                       "dedupLim": 0.9,
+                       "dedupFunc": 'seqm',
+                       "windowsSize": 1}
+
+        # keyword = get_YAKE_keywords(cover_text, topk=6, **yake_kwargs)
+        kw_extractor = yake.KeywordExtractor(**yake_kwargs, top=20)
+        # truncate text to fir the max length limit (minus 10 to be safe)
+        sen = tokenizer.decode(tokenizer(sen, add_special_tokens=False, truncation=True,
+                        max_length=tokenizer.model_max_length// 2 - 10)['input_ids'])
+        keywords = kw_extractor.extract_keywords(sen)  # dict of {phrase: score}
+        selected_keywords = [k[0] for k in keywords[:num_kwd]]
+        kw_hash = set(selected_keywords)
+
+        # find dependencies related to the keyword (Mask candidates)
+
+        kwd_dep = defaultdict(list)
+        mask_dep = defaultdict(list)
+
+        doc = nlp(sen)
+        tokens_list = [token.text for token in doc]
+        masked = []
+        sub_words = []
+
+        for token in doc:
+            if token.text in selected_keywords:
+                masked.append(token.head)
+                mask_candidates = generate_substitute_candidates(tokens_list, token.head.i, topk=4)
+                sub_words.append([x['token_str'] for x in mask_candidates])
+
+        if not any([len(x) for x in sub_words]):
+            match += 1
+            total += 1
+            print("Skipped\n")
+            continue
+
+        # Out of the mask candidates, find out which one is the best for a given criterion
+        # criterion:
+        #   - # of candidates that survived NLI threshold
+        #   - # of candidates that passed keyword restoration
+        valid_sub_words = []
+        for idx, sw in enumerate(product(*sub_words)):
+            wm_list = tokens_list.copy()
+            for m_idx, m in enumerate(masked):
+                wm_list[m.i] = sw[m_idx]
+            new_keywords = kw_extractor.extract_keywords(" ".join(wm_list))
+            new_keywords = [k[0] for k in new_keywords[:num_kwd]]
+            nk_hash = set(new_keywords)
+            if nk_hash == kw_hash:
+                match += 1
+                valid_sub_words.append(sw)
+            total += 1
+
+        if len(valid_sub_words):
+            num_bits += math.log2(len(valid_sub_words))
+        else:
+            print(kw_hash)
+            continue
+        # sanity check
+        for sw in valid_sub_words:
+            wm_list = tokens_list.copy()
+            for m_idx, m in enumerate(masked):
+                wm_list[m.i] = sw[m_idx]
+            new_keywords = kw_extractor.extract_keywords(" ".join(wm_list))
+            new_keywords = [k[0] for k in new_keywords[:num_kwd]]
+            nk_hash = set(new_keywords)
+            if nk_hash != kw_hash:
+                print("mismatch")
+
+
+        print(kw_hash)
+        print(nk_hash)
+        print(masked)
+        print(valid_sub_words)
+        print("\n")
+
+print(f"keyword match rate {match/total}")
+print(f"bpw: {num_bits / num_words}")
+
+# Choose rules
+
+
+
+
+##
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = "2"
 os.chdir(os.path.join(os.getcwd(), "./preliminary"))
-import sys
-from preliminary.dataset_utils import arxiv_cs_abstracts, roc_stories
+from preliminary.dataset_utils import arxiv_cs_abstracts
 
 corpus = arxiv_cs_abstracts("train", attrs=['title', 'abstract'])
 corpus = [i.replace("\n", " ") for i in corpus]
@@ -11,9 +140,7 @@ corpus = [i.replace("\n", " ") for i in corpus]
 # corpus = roc_stories("test")
 # corpus = [i.replace("\n", " ") for i in corpus]
 
-import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
-from nltk.corpus import stopwords
 from preliminary.utils import *
 
 max_corpus_sample = len(corpus)
@@ -25,135 +152,4 @@ processed_corpus = [clean_text(a) for a in corpus[:max_corpus_sample]]
 vectorizer.fit_transform(processed_corpus)
 feature_names = vectorizer.get_feature_names_out()
 
-
-##
-from random import choice, sample
-import re
-
-sample_idx = 2
-num_kwd = 3
-
-sample_txt = corpus[sample_idx]
-prep_sample = processed_corpus[sample_idx]
-
-keyword = get_tfidf_keywords(vectorizer, feature_names, prep_sample, num_kwd)
-
-yake_kwargs = {'lan': "en",
-               "n": 1,
-               "dedupLim": 0.9,
-               "dedupFunc": 'seqm',
-               "windowsSize": 1,
-               }
-
-import yake
-keyword = get_YAKE_keywords(prep_sample, topk=6, **yake_kwargs)
-
-kw_extractor = yake.KeywordExtractor(**yake_kwargs, top=20)
-keywords = kw_extractor.extract_keywords(prep_sample)  # dict of {phrase: score}
-keywords
-
-# map keeyword indices to the original text
-keyword_indices = []
-for k in keyword.values():
-    # print(sample_txt)
-    # print(k)
-    keyword_replaced = re.sub(k + r'\b', "[KWD]", sample_txt, flags=re.IGNORECASE)
-    index = [idx for idx, w in enumerate(keyword_replaced.split(" ")) if w =="[KWD]"]
-    keyword_indices.extend(index)
-
-
-# select mask indices based on some rule
-min_num_masks = int(num_kwd * 1)
-random_seed = sum(keyword.keys())
-banned_indices = [0,1]
-remaining_mask_idx = [i for i in range(len(sample_txt.split(" "))) if i not in keyword_indices+banned_indices]
-selected_mask_idx = sample(remaining_mask_idx, min_num_masks)
-
-context = sample_txt.split(" ")
-colored_context = sample_txt.split(" ")
-
-for m_idx in selected_mask_idx:
-    v = context[m_idx]
-    context[m_idx] = "_"
-    colored_context[m_idx] = f"\033[94m{v}\033[0m"
-
-colored_context = " ".join(colored_context)
-context = " ".join(context)
-print(colored_context)
-##
-
-MODEL_DIR = './tmp/ilm/models/sto_ilm'
-MASK_CLS = 'ilm.mask.hierarchical.MaskHierarchical'
-import os
-import pickle
-
-import ilm.tokenize_util
-
-tokenizer = ilm.tokenize_util.Tokenizer.GPT2
-with open(os.path.join(MODEL_DIR, 'additional_ids_to_tokens.pkl'), 'rb') as f:
-    additional_ids_to_tokens = pickle.load(f)
-additional_tokens_to_ids = {v:k for k, v in additional_ids_to_tokens.items()}
-try:
-    ilm.tokenize_util.update_tokenizer(additional_ids_to_tokens, tokenizer)
-except ValueError:
-    print('Already updated')
-
-# Load model
-import torch
-from transformers import GPT2LMHeadModel
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = GPT2LMHeadModel.from_pretrained(MODEL_DIR)
-model.eval()
-_ = model.to(device)
-
-
-# Create context
-if selected_mask_idx[0] == 0:
-    context = " " + context
-context_ids = ilm.tokenize_util.encode(context, tokenizer)
-
-# Replace blanks with appropriate tokens from left to right
-_blank_id = ilm.tokenize_util.encode(' _', tokenizer)[0]
-fill_idx = [idx for idx, _id in enumerate(context_ids) if _id == _blank_id]
-for fidx in fill_idx:
-    context_ids[fidx] = additional_tokens_to_ids['<|infill_word|>']
-
-
-
-
-
-##
-from ilm.tokenize_util import decode_with_color
-
-num_generate = 10
-generated, g_idx, terminated, g_spans = infill_with_ilm(
-    model,
-    additional_tokens_to_ids,
-    context_ids,
-    num_infills=num_generate)
-
-##
-print(colored_context)
-print("-"*50)
-print("Original keywords:")
-print(keyword)
-original_keys = set(keyword.values())
-for g, idx in zip(generated, g_idx):
-    print('-' * 80)
-    text = ilm.tokenize_util.decode(g, tokenizer)
-    colored_text = ilm.tokenize_util.decode_with_color(g, tokenizer, color_idx=idx)
-    print(colored_text)
-    new_keyword = get_tfidf_keywords(vectorizer, feature_names, clean_text(text), num_kwd)
-    new_keys = set(new_keyword.values())
-    kwd_match_flag = original_keys == new_keys
-    if not kwd_match_flag:
-        print(color_text(original_keys == new_keys, colorcode="HEADER"))
-        print(new_keyword)
-
-
-
-
-
-##
 

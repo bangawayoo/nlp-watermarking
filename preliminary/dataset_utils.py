@@ -1,6 +1,10 @@
 from enum import Enum
 import os
 import random
+import re
+import spacy
+import numpy as np
+import logging
 
 RAW_DATA_DIR = "./data/raw_data"
 
@@ -134,3 +138,34 @@ def roc_stories(split='train', data_dir=None, with_titles=True, exclude_nonstand
     stories = standardized
 
   return stories
+
+def preprocess_imdb(corpus):
+  CLEANR = re.compile('<.*?>')
+  corpus = [re.sub(CLEANR, '', c) for c in corpus]
+  corpus = [re.sub(r"\.+", ".",c) for c in corpus]
+  return corpus
+
+
+def preprocess2sentence(corpus, start_sample_idx, num_sample):
+  lengths = []
+  sentence_tokenized = []
+  nlp = spacy.load("en_core_web_sm")
+  corpus = corpus[:1000]
+  for doc in nlp.pipe(corpus):
+    lengths.extend([len(sent.text) for sent in doc.sents])
+    sentence_tokenized.append([sent.text for sent in doc.sents])
+
+  l_threshold = np.quantile(lengths, 0.05)
+  u_threshold = np.quantile(lengths, 0.95)
+
+  filtered = []
+  num_skipped = 0
+  num_processed = 0
+  for sample in sentence_tokenized[start_sample_idx: start_sample_idx+num_sample]:
+    sentences = [sen for sen in sample if len(sen) < u_threshold and len(sen) > l_threshold]
+    num_skipped += len(sample) - len(sentences)
+    num_processed += len(sentences)
+    filtered.append(sentences)
+
+  logging.info(f"{num_processed} sentences processed, {num_skipped} sentences skipped")
+  return filtered

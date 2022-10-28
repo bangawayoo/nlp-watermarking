@@ -3,7 +3,7 @@ import os
 os.environ['CUDA_VISIBLE_DEVICES'] = "2"
 os.chdir(os.path.join(os.getcwd(), "./preliminary"))
 import sys
-from preliminary.datasets import arxiv_cs_abstracts, roc_stories
+from preliminary.dataset_utils import arxiv_cs_abstracts, roc_stories
 
 corpus = arxiv_cs_abstracts("train", attrs=['title', 'abstract'])
 corpus = [i.replace("\n", " ") for i in corpus]

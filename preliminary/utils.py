@@ -4,6 +4,8 @@ except:
     print("Error importing yake")
 import re
 import torch
+from datasets import load_dataset
+from dataset_utils import preprocess_imdb
 # from ilm.infer import sample_from_logits
 import copy
 import torch.nn.functional as F
@@ -220,7 +222,179 @@ def find_diff_word(text, ref_text):
 
     return None, None
 
+
 def flatten_list(nested_list):
     output = []
     for l in nested_list:
         output.extend(l)
+
+
+def change_str_to_int(listed_str):
+    if len(listed_str) < 1:
+        return
+    int_str = [int(elem) for elem in listed_str if elem.isdigit()]
+    return int_str
+
+from transformers import AutoTokenizer
+from itertools import product
+import nltk
+
+# def get_watermarked_sample(result_txt, data_type=None, num_sample=None):
+#     """
+#     return a list of equal number of rows with results txt
+#     each row is a list of all possible combinations
+#     """
+#
+#     corpus = load_dataset("imdb")['test']['text']
+#     cover_texts = [t.replace("\n", " ") for t in corpus]
+#     cover_texts = preprocess_imdb(cover_texts)
+#     tokenizer = AutoTokenizer.from_pretrained("bert-base-cased", is_split_into_words=True)
+#
+#     results = get_result_txt(result_txt)
+#     output = []
+#     sample_level_agg = []
+#     prev_idx = -1
+#     for idx, (c_idx, sen_idx, sub_idset, sub_idx, msg, key) in enumerate(results):
+#         if prev_idx != c_idx:
+#             if prev_idx > -1:
+#                 output.append(sample_level_agg)
+#                 sample_level_agg = []
+#             original_text = cover_texts[c_idx]
+#             sentences = nltk.sent_tokenize(original_text)
+#             prev_idx = c_idx
+#
+#         sentence_level_agg = []
+#         original_input_ids = tokenizer(sentences[sen_idx], add_special_tokens=False)['input_ids']
+#         all_wms = product(*sub_idset) if len(sub_idset) else []
+#
+#         for wm in all_wms:
+#             input_ids = original_input_ids.copy()
+#             for w, w_idx in zip(wm, sub_idx):
+#                 input_ids[w_idx] = w
+#             sentence_level_agg.append(tokenizer.decode(input_ids))
+#
+#         if len(sentence_level_agg) == 0:
+#             sentence_level_agg.append(tokenizer.decode(original_input_ids))
+#
+#         sample_level_agg.append(sentence_level_agg)
+#
+#     # append the last sample's sentences
+#     output.append(sample_level_agg)
+#
+#     return output
+
+
+
+def get_result_txt(result_txt):
+    results = []
+    with open(f"{result_txt}", "r") as reader:
+        for line in reader:
+            line = line.split("\t")
+            if line:
+                # corpus idx
+                line[0] = int(line[0])
+                # sentence idx
+                line[1] = int(line[1])
+                # substituted idset
+                line[2] = [change_str_to_int(listed_str.split(" ")) for
+                           listed_str in line[2].split(",")[:-1]]
+                # substituted index
+                line[3] = change_str_to_int(line[3].split(" "))
+                # watermarked text
+                line[4] = line[4]
+                # substituted text
+                line[5] = [x.strip() for x in line[5].split(',')]
+                # embedded message
+                if line[6].strip():
+                    line[6] = [int(x) for x in line[6].strip().split(" ")]
+                else:
+                    line[6] = []
+            results.append(line)
+    return results
+
+
+from transformers import pipeline
+from nltk.stem import WordNetLemmatizer
+from nltk.stem.porter import PorterStemmer
+from nltk.corpus import stopwords
+
+import string
+
+tokenizer = AutoTokenizer.from_pretrained("bert-base-cased", is_split_into_words=True)
+pipe_fill_mask = pipeline('fill-mask', model='bert-base-cased', device=0, top_k=32)
+pipe_classification = pipeline(model="roberta-large-mnli", device=0, top_k=None)
+
+stop = set(stopwords.words('english'))
+puncuation = set(string.punctuation)
+riskset = stop.union(puncuation)
+sr_threshold=0.95
+
+def concatenate_for_ls(text, idx):
+    masked_text = text.copy()
+    masked_text[idx] = "[MASK]"
+    tokens_for_ls = text + ["[SEP]"] + masked_text
+    return " ".join(tokens_for_ls)
+
+
+def generate_substitute_candidates(text_processed, idx, topk=2):
+    text_for_ls = concatenate_for_ls(text_processed, idx)
+    mask_candidates = pipe_fill_mask(text_for_ls)
+
+    # filter out words with only difference in cases (lowercase, uppercase)
+    text = text_processed[idx]
+    mask_candidates = list(filter(lambda x: not (x['token_str'].lower() == text.lower() and
+                                            x['token_str'] != text) , mask_candidates))
+
+    # filter out subword tokens
+    mask_candidates = list(filter(lambda x: not x['token_str'].startswith("##"), mask_candidates))
+
+    # filter out morphological derivations
+    porter_stemmer = PorterStemmer()
+    text_lm = porter_stemmer.stem(text)
+    mask_candidates = \
+        list(filter(lambda x: porter_stemmer.stem(x['token_str']) != text_lm
+                              or x['token_str']==text, mask_candidates))
+
+    lemmatizer = WordNetLemmatizer()
+    for pos in ["v", "n", "a", "r", "s"]:
+        text_lm = lemmatizer.lemmatize(text, pos)
+        mask_candidates = \
+            list(filter(lambda x: lemmatizer.lemmatize(x['token_str'], pos) != text_lm
+                                  or x['token_str']==text, mask_candidates))
+    # filter out riskset
+    mask_candidates = list(filter(lambda x: x['token_str'] not in riskset, mask_candidates))
+    # filter out words with any punctuations
+    mask_candidates = list(filter(lambda x: not any(s for s in x['token_str'] if s in string.punctuation),
+                                  mask_candidates))
+
+    # get entailment scores
+    for item in mask_candidates:
+        replaced = text_for_ls.replace('[MASK]', item['token_str'])
+        entail_result = pipe_classification(replaced)
+        item['entail_score'] = [i for i in entail_result[0] if i['label']=='ENTAILMENT'][0]['score']
+
+    # sort in descending order
+    mask_candidates = sorted(mask_candidates, key=lambda x: x['entail_score'], reverse=True)
+    # filter out with sr_threshold
+    mask_candidates = list(filter(lambda x: x['entail_score'] > sr_threshold, mask_candidates))
+
+    return mask_candidates[:topk]
+
+
+def compute_ber(pred, gt):
+    error_cnt = 0
+    cnt = 0
+    if len(pred) != len(gt):
+        error_cnt += abs(len(gt) - len(pred))
+        cnt += abs(len(gt) - len(pred))
+        if len(pred) < len(gt):
+            gt = gt[:len(pred)]
+        else:
+            pred = pred[:len(gt)]
+
+    for p, g in zip(pred, gt):
+        if p != g:
+            error_cnt += 1
+        cnt += 1
+
+    return error_cnt, cnt
