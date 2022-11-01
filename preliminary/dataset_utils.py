@@ -146,7 +146,7 @@ def preprocess_imdb(corpus):
   return corpus
 
 
-def preprocess2sentence(corpus, start_sample_idx, num_sample, population_size=100):
+def preprocess2sentence(corpus, start_sample_idx, num_sample, population_size=1000):
   lengths = []
   sentence_tokenized = []
   nlp = spacy.load("en_core_web_sm")

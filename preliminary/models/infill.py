@@ -17,7 +17,7 @@ from utils import *
 
 # TODO:
 now = datetime.now()
-dt_string = now.strftime("%m%d_%H:%M:%S")
+dt_string = now.strftime("%m%d_%H%M%S")
 stop = set(stopwords.words('english'))
 punctuation = set(string.punctuation)
 riskset = stop.union(punctuation)
@@ -27,7 +27,11 @@ logger.setLevel(logging.INFO)
 logFormatter = logging.Formatter("%(asctime)s - %(threadName)s - %(levelname)s - %(message)s",
                                  datefmt="%Y-%m-%d %H:%M:%S")
 
-file_handler = logging.FileHandler(f"./logs/infill-{dt_string}.log")
+log_path = f"./logs/infill/infill-{dt_string}.log"
+log_dir = os.path.dirname(log_path)
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+file_handler = logging.FileHandler(log_path)
 file_handler.setFormatter(logFormatter)
 logger.addHandler(file_handler)
 
@@ -43,12 +47,16 @@ class InfillModel:
         self.word_tokenizer = spacy.load("en_core_web_sm")
         self.grad_cnt = 0
         params = [p for p in self.lm_head.parameters()]
-        self.optimizer = torch.optim.Adam(params, lr=1e-5)
+        self.optimizer = torch.optim.Adam(params, lr=5e-5)
         self.metric = {'entail_score':[], 'num_subs':[]}
-
-    def init_metric(self):
-        self.metric = {'entail_score':[], 'num_subs':[]}
-
+        self.train_d, self.test_d = self._init_dataset()
+        self.kwd_kwargs = {'lan': "en",
+                           "n": 1,
+                           "dedupLim": 0.9,
+                           "dedupFunc": 'seqm',
+                           "windowsSize": 1}
+        self.train_kwargs = {'epoch':100,
+                             }
 
     def fill_mask(self, text, mask_indices, train_flag=True, topk=2):
         # sample text = "By now you should know that the capital of France is Paris."
@@ -67,27 +75,31 @@ class InfillModel:
         else:
             with torch.no_grad():
                 logits = self.lm_head(**inputs).logits
-        masked_index = torch.nonzero(inputs['input_ids'] == self.tokenizer.mask_token_id, as_tuple=True)
 
+        masked_index = torch.nonzero(inputs['input_ids'] == self.tokenizer.mask_token_id, as_tuple=True)
         # Fill mask pipeline supports only one mask_token per sample
         mask_logits = logits[masked_index]
         probs = mask_logits.softmax(dim=-1)
         sorted_probs, indices = torch.sort(probs, dim=-1, descending=True)
 
         candidate_texts = []
+        valid_input = [True for _ in range(len(mask_indices))]
         avg_num_cand = 0
         # filter the chosen tokens
         for idx, m_idx in enumerate(mask_indices):
             candidate_ids = self._filter_words(indices[idx,:32].squeeze(), tokenized_text[m_idx]).to(self.device)
             avg_num_cand += len(candidate_ids)
             if len(candidate_ids) == 0:
+                # candidate_ids = inputs['input_ids'][idx, m_idx].clone().repeat(topk)
+                valid_input[idx] = False
                 continue
             elif len(indices) < topk:
                 candidate_ids = candidate_ids.repeat(topk)[:topk]
             else:
                 candidate_ids = candidate_ids[:topk]
+
             compared_inputs = inputs['input_ids'][idx].clone().repeat(topk, 1) # (batch, seq)
-            compared_inputs[:, masked_index[1]] = candidate_ids.unsqueeze(-1)
+            compared_inputs[:, m_idx] = candidate_ids
             candidate_texts.append(compared_inputs)
         avg_num_cand /= len(mask_indices)
 
@@ -99,7 +111,8 @@ class InfillModel:
             with torch.no_grad():
                 nli_output = self.nli_model(**nli_input)
             entail_score = nli_output.logits.softmax(dim=-1)[:, 2]
-            regret = ((0.95 - entail_score) * sorted_probs[:, :topk].flatten()).sum()
+            regret = ((0.95 - entail_score) * sorted_probs[valid_input, :topk].flatten()).sum()
+
             if train_flag:
                 regret.backward()
             self.grad_cnt += len(entail_score)
@@ -111,11 +124,99 @@ class InfillModel:
             self.metric['entail_score'].extend(entail_score.tolist())
             self.metric['num_subs'].append(avg_num_cand)
 
-        if self.grad_cnt >= 256 and train_flag:
+        if self.grad_cnt >= 128 and train_flag:
             self.optimizer.step()
             self.optimizer.zero_grad()
             self.grad_cnt = 0
             logger.info(f"entail score: {entail_score.mean().item()}")
+
+    def train(self):
+        for ep in range(self.train_kwargs['epoch']):
+            logger.info(f"Epoch {ep}")
+            for c_idx, sentences in enumerate(self.train_d):
+                for s_idx, sen in enumerate(sentences):
+                    logger.info(f"{c_idx} {s_idx}")
+                    logger.info(sen)
+                    # truncate text to the max length limit (minus 10 to be safe)
+                    sen = tokenizer.decode(tokenizer(sen, add_special_tokens=False, truncation=True,
+                                                     max_length=tokenizer.model_max_length // 2 - 10)['input_ids'])
+
+                    doc = self.word_tokenizer(sen)
+                    punct_removed = [token.text for token in doc if not token.is_punct]
+
+                    word_count = len(punct_removed)
+                    num_kwd = max(1, int(0.15 * word_count))
+                    # pick keywords
+                    kw_extractor = yake.KeywordExtractor(**self.kwd_kwargs, top=20)
+                    # truncate text to the max length limit (minus 10 to be safe)
+                    sen = tokenizer.decode(tokenizer(sen, add_special_tokens=False, truncation=True,
+                                                     max_length=tokenizer.model_max_length // 2 - 10)['input_ids'])
+                    keywords = kw_extractor.extract_keywords(sen)  # dict of {phrase: score}
+                    selected_keywords = [k[0] for k in keywords[:num_kwd]]
+                    kw_hash = set(selected_keywords)
+
+                    doc = self.word_tokenizer(sen)
+                    tokens_list = [token.text for token in doc]
+                    masked = []
+
+                    for token in doc:
+                        if token.text in selected_keywords:
+                            masked.append((token.head, token.head.i))
+                            selected_keywords.remove(token.text)
+
+                    if masked:
+                        mask_indices = [i[1] for i in masked]
+                        model.fill_mask(sen, mask_indices)
+
+    def evaluate(self):
+        for c_idx, sentences in enumerate(self.test_d):
+            for s_idx, sen in enumerate(sentences):
+                logger.info(f"{c_idx} {s_idx}")
+                logger.info(sen)
+                # truncate text to the max length limit (minus 10 to be safe)
+                sen = tokenizer.decode(tokenizer(sen, add_special_tokens=False, truncation=True,
+                                                 max_length=tokenizer.model_max_length // 2 - 10)['input_ids'])
+
+                doc = self.word_tokenizer(sen)
+                punct_removed = [token.text for token in doc if not token.is_punct]
+                word_count = len(punct_removed)
+                num_kwd = max(1, int(0.15 * word_count))
+
+                # pick keywords
+                kw_extractor = yake.KeywordExtractor(**self.kwd_kwargs, top=20)
+                keywords = kw_extractor.extract_keywords(sen)  # dict of {phrase: score}
+                selected_keywords = [k[0] for k in keywords[:num_kwd]]
+                kw_hash = set(selected_keywords)
+                masked = []
+
+                for token in doc:
+                    if token.text in selected_keywords:
+                        masked.append((token.head, token.head.i))
+                        selected_keywords.remove(token.text)
+
+                if masked:
+                    mask_indices = [i[1] for i in masked]
+                    model.fill_mask(sen, mask_indices, train_flag=False)
+
+
+
+    def init_metric(self):
+        self.metric = {'entail_score': [], 'num_subs': []}
+
+    def _init_dataset(self, dtype="imdb"):
+        start_sample_idx = 0
+        corpus = load_dataset("imdb")['train']['text']
+        num_sample = len(corpus)
+
+        cover_texts = [t.replace("\n", " ") for t in corpus]
+        cover_texts = preprocess_imdb(cover_texts)
+        cover_texts = preprocess2sentence(cover_texts, start_sample_idx, num_sample)
+
+        corpus = load_dataset("imdb")['test']['text']
+        test_cover_texts = [t.replace("\n", " ") for t in corpus]
+        test_cover_texts = preprocess_imdb(test_cover_texts)
+        test_cover_texts = preprocess2sentence(test_cover_texts, start_sample_idx, 1000)
+        return cover_texts, test_cover_texts
 
     def _concatenate_for_nli(self, compared_ids, text):
         num_samples = compared_ids.shape[0]
@@ -158,152 +259,22 @@ class InfillModel:
         return torch.tensor([x['token'] for x in mask_candidates])
 
 
-# load dataset
-dtype = "imdb"
-start_sample_idx = 0
-num_epoch = 50
-
-corpus = load_dataset("imdb")['train']['text']
-num_sample = len(corpus)
-result_dir = f"results/ours-{dtype}-{start_sample_idx}-{start_sample_idx+num_sample}.txt"
-
-cover_texts = [t.replace("\n", " ") for t in corpus]
-cover_texts = preprocess_imdb(cover_texts)
-cover_texts = preprocess2sentence(cover_texts, start_sample_idx, num_sample)
-
-corpus = load_dataset("imdb")['test']['text']
-test_cover_texts = [t.replace("\n", " ") for t in corpus]
-test_cover_texts = preprocess_imdb(test_cover_texts)
-test_cover_texts = preprocess2sentence(test_cover_texts, start_sample_idx, 10)
-
-nlp = spacy.load("en_core_web_sm")
-match = total = 0
-num_bits = 0
-num_words = 0
-
 
 model = InfillModel()
+# model.lm_head.from_pretrained("models/ckpt/1101_17:52:48")
 
-for c_idx, sentences in enumerate(test_cover_texts):
-    for s_idx, sen in enumerate(sentences):
-        logger.info(f"{c_idx} {s_idx}")
-        logger.info(sen)
-        punct_removed = sen.translate(str.maketrans(dict.fromkeys(string.punctuation)))
-        word_count = len([i for i in punct_removed.split(" ") if i not in stop])
-        num_kwd = max(1, int(0.15 * word_count))
-        # pick keywords
-        yake_kwargs = {'lan': "en",
-                       "n": 1,
-                       "dedupLim": 0.9,
-                       "dedupFunc": 'seqm',
-                       "windowsSize": 1}
-
-        kw_extractor = yake.KeywordExtractor(**yake_kwargs, top=20)
-        # truncate text to the max length limit (minus 10 to be safe)
-        sen = tokenizer.decode(tokenizer(sen, add_special_tokens=False, truncation=True,
-                        max_length=tokenizer.model_max_length// 2 - 10)['input_ids'])
-        keywords = kw_extractor.extract_keywords(sen)  # dict of {phrase: score}
-        selected_keywords = [k[0] for k in keywords[:num_kwd]]
-        kw_hash = set(selected_keywords)
-
-        doc = nlp(sen)
-        tokens_list = [token.text for token in doc]
-        masked = []
-        sub_words = []
-
-        for token in doc:
-            if token.text in selected_keywords:
-                masked.append((token.head, token.head.i))
-                selected_keywords.remove(token.text)
-
-        # breakpoint()
-        if masked:
-            mask_indices = [i[1] for i in masked]
-            model.fill_mask(sen, mask_indices, train_flag=False)
-
+model.evaluate()
 bf_nli_score = torch.mean(torch.tensor(model.metric['entail_score'])).item()
 bf_num_subs = torch.mean(torch.tensor(model.metric['num_subs'], dtype=float)).item()
+logger.info(f"Before training: {bf_nli_score, bf_num_subs}")
 model.init_metric()
 
-for ep in range(num_epoch):
-    logger.info(f"Epoch {ep}")
-    for c_idx, sentences in enumerate(cover_texts):
-        for s_idx, sen in enumerate(sentences):
-            logger.info(f"{c_idx} {s_idx}")
-            logger.info(sen)
-            punct_removed = sen.translate(str.maketrans(dict.fromkeys(string.punctuation)))
-            word_count = len([i for i in punct_removed.split(" ") if i not in stop])
-            num_kwd = max(1, int(0.15 * word_count))
-            # pick keywords
-            yake_kwargs = {'lan': "en",
-                           "n": 1,
-                           "dedupLim": 0.9,
-                           "dedupFunc": 'seqm',
-                           "windowsSize": 1}
-
-            kw_extractor = yake.KeywordExtractor(**yake_kwargs, top=20)
-            # truncate text to the max length limit (minus 10 to be safe)
-            sen = tokenizer.decode(tokenizer(sen, add_special_tokens=False, truncation=True,
-                            max_length=tokenizer.model_max_length// 2 - 10)['input_ids'])
-            keywords = kw_extractor.extract_keywords(sen)  # dict of {phrase: score}
-            selected_keywords = [k[0] for k in keywords[:num_kwd]]
-            kw_hash = set(selected_keywords)
-
-            doc = nlp(sen)
-            tokens_list = [token.text for token in doc]
-            masked = []
-            sub_words = []
-
-            for token in doc:
-                if token.text in selected_keywords:
-                    masked.append((token.head, token.head.i))
-                    selected_keywords.remove(token.text)
-
-            # breakpoint()
-            if masked:
-                mask_indices = [i[1] for i in masked]
-                model.fill_mask(sen, mask_indices)
-
-
-
-for c_idx, sentences in enumerate(test_cover_texts):
-    for s_idx, sen in enumerate(sentences):
-        logger.info(f"{c_idx} {s_idx}")
-        logger.info(sen)
-        punct_removed = sen.translate(str.maketrans(dict.fromkeys(string.punctuation)))
-        word_count = len([i for i in punct_removed.split(" ") if i not in stop])
-        num_kwd = max(1, int(0.15 * word_count))
-        # pick keywords
-        yake_kwargs = {'lan': "en",
-                       "n": 1,
-                       "dedupLim": 0.9,
-                       "dedupFunc": 'seqm',
-                       "windowsSize": 1}
-
-        kw_extractor = yake.KeywordExtractor(**yake_kwargs, top=20)
-        # truncate text to the max length limit (minus 10 to be safe)
-        sen = tokenizer.decode(tokenizer(sen, add_special_tokens=False, truncation=True,
-                        max_length=tokenizer.model_max_length// 2 - 10)['input_ids'])
-        keywords = kw_extractor.extract_keywords(sen)  # dict of {phrase: score}
-        selected_keywords = [k[0] for k in keywords[:num_kwd]]
-        kw_hash = set(selected_keywords)
-
-        doc = nlp(sen)
-        tokens_list = [token.text for token in doc]
-        masked = []
-        sub_words = []
-
-        for token in doc:
-            if token.text in selected_keywords:
-                masked.append((token.head, token.head.i))
-                selected_keywords.remove(token.text)
-        # breakpoint()
-        if masked:
-            mask_indices = [i[1] for i in masked]
-            model.fill_mask(sen, mask_indices, train_flag=False)
-
+model.train()
+model.evaluate()
 logger.info(f"Before training: {bf_nli_score, bf_num_subs}")
 nli_score = torch.mean(torch.tensor(model.metric['entail_score'])).item()
 num_subs = torch.mean(torch.tensor(model.metric['num_subs'], dtype=float)).item()
 logger.info(f"After training: {nli_score, num_subs}")
 
+ckpt_dir = f"./models/ckpt/{dt_string}"
+model.lm_head.save_pretrained(ckpt_dir)
