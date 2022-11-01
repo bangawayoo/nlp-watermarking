@@ -1,11 +1,17 @@
 #TODO:
-
+import logging
+import os
+# os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
+from collections import defaultdict
+import random
+import sys
+import string
 
 from transformers import pipeline
 from transformers import AutoTokenizer
-import string
 
 from textattack import attack_recipes
+from tqdm import tqdm
 
 from nltk.stem import WordNetLemmatizer
 from nltk.stem.porter import PorterStemmer
@@ -13,15 +19,8 @@ from nltk.corpus import stopwords
 from nltk.corpus import wordnet as wn
 import nltk
 
-import logging
-import os
-# os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
-from collections import defaultdict
-import random
-import sys
-from tqdm import tqdm
-
 from utils import *
+
 
 lemmatizer = WordNetLemmatizer()
 
@@ -261,7 +260,7 @@ if sys.argv[1] == "extract":
     num_sample = 100
     result_dir = f"results/context-ls-{dtype}-{start_sample_idx}-{start_sample_idx+num_sample}.txt"
     corrupted_flag = True
-    corrupted_dir = "./results/context-ls-imdb-corrupted=0.0001.txt"
+    corrupted_dir = "./results/context-ls-imdb-corrupted=0.1.txt"
     corrupted_watermarked = []
     with open(corrupted_dir, "r") as reader:
         for line in reader:

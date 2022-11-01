@@ -1,14 +1,16 @@
 ##
-import math
 from collections import defaultdict
+from itertools import product
+import math
 
-import yake
 from nltk import sent_tokenize
 from nltk.corpus import stopwords
-from itertools import product
 import spacy
+import yake
 
 from utils import *
+from dataset_utils import preprocess2sentence, preprocess_imdb
+
 
 sr_threshold = 0.95
 dtype = "imdb"
@@ -20,16 +22,16 @@ stop = set(stopwords.words('english'))
 corpus = load_dataset("imdb")['train']['text']
 result_dir = f"results/ours-{dtype}-{start_sample_idx}-{start_sample_idx+num_sample}.txt"
 
-cover_texts = corpus[start_sample_idx:start_sample_idx+num_sample]
-cover_texts = [t.replace("\n", " ") for t in cover_texts]
+cover_texts = [t.replace("\n", " ") for t in corpus]
 cover_texts = preprocess_imdb(cover_texts)
+cover_texts = preprocess2sentence(cover_texts, start_sample_idx, num_sample)
+
 nlp = spacy.load("en_core_web_sm")
 match = total = 0
 num_bits = 0
 num_words = 0
 
-for c_idx, cover_text in enumerate(cover_texts):
-    sentences = sent_tokenize(cover_text)
+for c_idx, sentences in enumerate(cover_texts[:5]):
     for s_idx, sen in enumerate(sentences):
 
         # c_idx, s_idx = 0, 1
@@ -51,7 +53,7 @@ for c_idx, cover_text in enumerate(cover_texts):
 
         # keyword = get_YAKE_keywords(cover_text, topk=6, **yake_kwargs)
         kw_extractor = yake.KeywordExtractor(**yake_kwargs, top=20)
-        # truncate text to fir the max length limit (minus 10 to be safe)
+        # truncate text to the max length limit (minus 10 to be safe)
         sen = tokenizer.decode(tokenizer(sen, add_special_tokens=False, truncation=True,
                         max_length=tokenizer.model_max_length// 2 - 10)['input_ids'])
         keywords = kw_extractor.extract_keywords(sen)  # dict of {phrase: score}
@@ -59,7 +61,6 @@ for c_idx, cover_text in enumerate(cover_texts):
         kw_hash = set(selected_keywords)
 
         # find dependencies related to the keyword (Mask candidates)
-
         kwd_dep = defaultdict(list)
         mask_dep = defaultdict(list)
 
@@ -70,9 +71,12 @@ for c_idx, cover_text in enumerate(cover_texts):
 
         for token in doc:
             if token.text in selected_keywords:
-                masked.append(token.head)
-                mask_candidates = generate_substitute_candidates(tokens_list, token.head.i, topk=4)
-                sub_words.append([x['token_str'] for x in mask_candidates])
+                masked.append((token.head, token.head.i))
+                # mask_candidates = generate_substitute_candidates(tokens_list, token.head.i, topk=4)
+                # sub_words.append([x['token_str'] for x in mask_candidates])
+        print(kw_hash)
+        print([i[0] for i in masked])
+        print("\n")
 
         if not any([len(x) for x in sub_words]):
             match += 1
@@ -84,41 +88,41 @@ for c_idx, cover_text in enumerate(cover_texts):
         # criterion:
         #   - # of candidates that survived NLI threshold
         #   - # of candidates that passed keyword restoration
-        valid_sub_words = []
-        for idx, sw in enumerate(product(*sub_words)):
-            wm_list = tokens_list.copy()
-            for m_idx, m in enumerate(masked):
-                wm_list[m.i] = sw[m_idx]
-            new_keywords = kw_extractor.extract_keywords(" ".join(wm_list))
-            new_keywords = [k[0] for k in new_keywords[:num_kwd]]
-            nk_hash = set(new_keywords)
-            if nk_hash == kw_hash:
-                match += 1
-                valid_sub_words.append(sw)
-            total += 1
-
-        if len(valid_sub_words):
-            num_bits += math.log2(len(valid_sub_words))
-        else:
-            print(kw_hash)
-            continue
-        # sanity check
-        for sw in valid_sub_words:
-            wm_list = tokens_list.copy()
-            for m_idx, m in enumerate(masked):
-                wm_list[m.i] = sw[m_idx]
-            new_keywords = kw_extractor.extract_keywords(" ".join(wm_list))
-            new_keywords = [k[0] for k in new_keywords[:num_kwd]]
-            nk_hash = set(new_keywords)
-            if nk_hash != kw_hash:
-                print("mismatch")
-
-
-        print(kw_hash)
-        print(nk_hash)
-        print(masked)
-        print(valid_sub_words)
-        print("\n")
+        # valid_sub_words = []
+        # for idx, sw in enumerate(product(*sub_words)):
+        #     wm_list = tokens_list.copy()
+        #     for m_idx, m in enumerate(masked):
+        #         wm_list[m.i] = sw[m_idx]
+        #     new_keywords = kw_extractor.extract_keywords(" ".join(wm_list))
+        #     new_keywords = [k[0] for k in new_keywords[:num_kwd]]
+        #     nk_hash = set(new_keywords)
+        #     if nk_hash == kw_hash:
+        #         match += 1
+        #         valid_sub_words.append(sw)
+        #     total += 1
+        #
+        # if len(valid_sub_words):
+        #     num_bits += math.log2(len(valid_sub_words))
+        # else:
+        #     print(kw_hash)
+        #     continue
+        # # sanity check
+        # for sw in valid_sub_words:
+        #     wm_list = tokens_list.copy()
+        #     for m_idx, m in enumerate(masked):
+        #         wm_list[m.i] = sw[m_idx]
+        #     new_keywords = kw_extractor.extract_keywords(" ".join(wm_list))
+        #     new_keywords = [k[0] for k in new_keywords[:num_kwd]]
+        #     nk_hash = set(new_keywords)
+        #     if nk_hash != kw_hash:
+        #         print("mismatch")
+        #
+        #
+        # print(kw_hash)
+        # print(nk_hash)
+        # print(masked)
+        # print(valid_sub_words)
+        # print("\n")
 
 print(f"keyword match rate {match/total}")
 print(f"bpw: {num_bits / num_words}")

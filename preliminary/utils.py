@@ -1,14 +1,17 @@
+import copy
+from itertools import product
+import re
+
+from datasets import load_dataset
+import torch
+import torch.nn.functional as F
+from transformers import AutoTokenizer
 try:
     import yake
 except:
     print("Error importing yake")
-import re
-import torch
-from datasets import load_dataset
-from dataset_utils import preprocess_imdb
-# from ilm.infer import sample_from_logits
-import copy
-import torch.nn.functional as F
+
+
 
 #https://www.kaggle.com/code/rowhitswami/keywords-extraction-using-tf-idf-method
 def sort_coo(coo_matrix):
@@ -234,54 +237,6 @@ def change_str_to_int(listed_str):
         return
     int_str = [int(elem) for elem in listed_str if elem.isdigit()]
     return int_str
-
-from transformers import AutoTokenizer
-from itertools import product
-import nltk
-
-# def get_watermarked_sample(result_txt, data_type=None, num_sample=None):
-#     """
-#     return a list of equal number of rows with results txt
-#     each row is a list of all possible combinations
-#     """
-#
-#     corpus = load_dataset("imdb")['test']['text']
-#     cover_texts = [t.replace("\n", " ") for t in corpus]
-#     cover_texts = preprocess_imdb(cover_texts)
-#     tokenizer = AutoTokenizer.from_pretrained("bert-base-cased", is_split_into_words=True)
-#
-#     results = get_result_txt(result_txt)
-#     output = []
-#     sample_level_agg = []
-#     prev_idx = -1
-#     for idx, (c_idx, sen_idx, sub_idset, sub_idx, msg, key) in enumerate(results):
-#         if prev_idx != c_idx:
-#             if prev_idx > -1:
-#                 output.append(sample_level_agg)
-#                 sample_level_agg = []
-#             original_text = cover_texts[c_idx]
-#             sentences = nltk.sent_tokenize(original_text)
-#             prev_idx = c_idx
-#
-#         sentence_level_agg = []
-#         original_input_ids = tokenizer(sentences[sen_idx], add_special_tokens=False)['input_ids']
-#         all_wms = product(*sub_idset) if len(sub_idset) else []
-#
-#         for wm in all_wms:
-#             input_ids = original_input_ids.copy()
-#             for w, w_idx in zip(wm, sub_idx):
-#                 input_ids[w_idx] = w
-#             sentence_level_agg.append(tokenizer.decode(input_ids))
-#
-#         if len(sentence_level_agg) == 0:
-#             sentence_level_agg.append(tokenizer.decode(original_input_ids))
-#
-#         sample_level_agg.append(sentence_level_agg)
-#
-#     # append the last sample's sentences
-#     output.append(sample_level_agg)
-#
-#     return output
 
 
 

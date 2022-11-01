@@ -1,43 +1,31 @@
+import logging
 import os
+import random
 import sys
 sys.path.append(os.path.join(os.getcwd()))
-from tqdm import tqdm
-import logging
-
-from utils import get_result_txt
 
 from textattack.transformations import WordInsertionMaskedLM
 from textattack.augmentation import Augmenter
 from textattack.constraints.semantics.sentence_encoders import UniversalSentenceEncoder
 import transformers
+from tqdm import tqdm
 
-import random
-# os.chdir("./Research/NLP/nlp-watermarking/preliminary")
+from utils import get_result_txt
 
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 logFormatter = logging.Formatter("%(asctime)s - %(threadName)s - %(levelname)s - %(message)s",
                                  datefmt="%Y-%m-%d %H:%M:%S")
-
 file_handler = logging.FileHandler(f"./logs/corruption.log", mode="a")
 file_handler.setFormatter(logFormatter)
 logger.addHandler(file_handler)
 
 
-# load data
-dtype = "imdb"
-num_sample = 50
-
-# corpus = arxiv_cs_abstracts("train",  attrs=['abstract'])
-result_dir = f"results/context-ls-{dtype}-corrupted={pct}.txt"
-wr = open(result_dir, "a")
-watermarked_samples = get_result_txt(f"./results/context-ls-{dtype}-0-100.txt")
-
-
-
 class Attacker:
     def __init__(self, attack_type, attack_percentage, path2txt, path2result, constraint_kwargs):
+        logger.info(f"Initializing attacker with [{attack_type}] attack with rate=[{attack_percentage}]")
+        logger.info(f"Parameters are {constraint_kwargs}")
         if attack_type == "insertion":
             shared_masked_lm = transformers.AutoModelForCausalLM.from_pretrained(
                 "distilroberta-base"
@@ -76,10 +64,10 @@ class Attacker:
 
     def attack_sentence(self):
         skipped_cnt = 0
-        for idx, (c_idx, sen_idx, sub_idset, sub_idx, wm_sen, key, msg) in enumerate(tqdm(watermarked_samples)):
+        for idx, (c_idx, sen_idx, sub_idset, sub_idx, wm_sen, key, msg) in enumerate(tqdm(self.texts)):
             if msg:
                 corrupted_sentence = self.augmenter.augment(wm_sen)[0]
-                logger.info(len(corrupted_sentence) == len(wm_sen))
+                print(len(wm_sen.split(" ")))
                 logger.info(corrupted_sentence)
                 logger.info(wm_sen)
                 if len(corrupted_sentence) == len(wm_sen):
@@ -87,20 +75,21 @@ class Attacker:
                     skipped_cnt += 1
             else:
                 corrupted_sentence = wm_sen
+                skipped_cnt += 1
 
             self.wr.write(corrupted_sentence + "\n")
 
-        logger.info(f"Skipped {skipped_cnt} out of {len(watermarked_samples)} sentences")
+        logger.info(f"Skipped {skipped_cnt} out of {len(self.texts)} sentences")
 
     def attack_sample(self):
         sentence_agg = []
         augmented_data = []
         prev_idx = 0
 
-        for idx, (c_idx, sen_idx, sub_idset, sub_idx, wm_sen, key, msg) in enumerate(tqdm(watermarked_samples)):
+        for idx, (c_idx, sen_idx, sub_idset, sub_idx, wm_sen, key, msg) in enumerate(tqdm(self.texts)):
             if prev_idx == c_idx:
                 sentence_agg.append(wm_sen)
-                if idx != len(watermarked_samples)-1: # for the last sample, do not continue to next loop
+                if idx != len(self.texts)-1: # for the last sample, do not continue to the next loop
                     continue
 
             while True:

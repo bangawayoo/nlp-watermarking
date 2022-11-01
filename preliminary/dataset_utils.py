@@ -146,11 +146,11 @@ def preprocess_imdb(corpus):
   return corpus
 
 
-def preprocess2sentence(corpus, start_sample_idx, num_sample):
+def preprocess2sentence(corpus, start_sample_idx, num_sample, population_size=100):
   lengths = []
   sentence_tokenized = []
   nlp = spacy.load("en_core_web_sm")
-  corpus = corpus[:1000]
+  corpus = corpus[:population_size]
   for doc in nlp.pipe(corpus):
     lengths.extend([len(sent.text) for sent in doc.sents])
     sentence_tokenized.append([sent.text for sent in doc.sents])
