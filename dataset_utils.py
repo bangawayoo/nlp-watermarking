@@ -1,12 +1,15 @@
 from enum import Enum
+import logging
 import os
+import pickle
+import numpy as np
 import random
 import re
 import spacy
-import numpy as np
-import logging
+from tqdm import tqdm
 
-RAW_DATA_DIR = "./data/raw_data"
+RAW_DATA_DIR = "../data/raw_data"
+CACHE_DIR= "../data/cache"
 
 class Dataset(Enum):
   CUSTOM = 0
@@ -146,21 +149,46 @@ def preprocess_imdb(corpus):
   return corpus
 
 
-def preprocess2sentence(corpus, start_sample_idx, num_sample, population_size=1000):
+def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample,
+                        population_size=1000, cutoff_q=(0.05, 0.95),
+                        spacy_model="en_core_web_sm"):
+  population_size = max(population_size, start_sample_idx + num_sample)
+  id = f"{corpus_name}-{spacy_model}"
+  if not os.path.isdir(CACHE_DIR):
+    os.makedirs(CACHE_DIR ,exist_ok=True)
+  file_dir = os.path.join(CACHE_DIR, id+".pkl")
+
+  if os.path.isfile(file_dir):
+    logging.info(f"Using cache {file_dir}")
+    with open(file_dir, "rb") as f:
+      docs = pickle.load(f)
+  else:
+    logging.info(f"Processing corpus with {spacy_model}...")
+    nlp = spacy.load(spacy_model)
+    corpus = corpus[:population_size]
+    docs = []
+    num_workers = 1 if "trf" in spacy_model else 4
+    for doc in nlp.pipe(corpus, n_process=num_workers):
+      docs.append(doc)
+
+    logging.info(f"Caching preprocessed sentences")
+    with open(file_dir, "wb") as f:
+      pickle.dump(docs, f)
+
   lengths = []
   sentence_tokenized = []
-  nlp = spacy.load("en_core_web_sm")
-  corpus = corpus[:population_size]
-  for doc in nlp.pipe(corpus):
-    lengths.extend([len(sent.text) for sent in doc.sents])
-    sentence_tokenized.append([sent.text for sent in doc.sents])
 
-  l_threshold = np.quantile(lengths, 0.05)
-  u_threshold = np.quantile(lengths, 0.95)
+  for doc in docs:
+    lengths.extend([len(sent) for sent in doc.sents])
+    sentence_tokenized.append([sent for sent in doc.sents])
+
+  l_threshold = np.quantile(lengths, cutoff_q[0])
+  u_threshold = np.quantile(lengths, cutoff_q[1])
 
   filtered = []
   num_skipped = 0
   num_processed = 0
+
   for sample in sentence_tokenized[start_sample_idx: start_sample_idx+num_sample]:
     sentences = [sen for sen in sample if len(sen) < u_threshold and len(sen) > l_threshold]
     num_skipped += len(sample) - len(sentences)
@@ -169,3 +197,5 @@ def preprocess2sentence(corpus, start_sample_idx, num_sample, population_size=10
 
   logging.info(f"{num_processed} sentences processed, {num_skipped} sentences skipped")
   return filtered
+
+

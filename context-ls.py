@@ -9,7 +9,6 @@ import string
 
 from transformers import pipeline
 from transformers import AutoTokenizer
-
 from textattack import attack_recipes
 from tqdm import tqdm
 
