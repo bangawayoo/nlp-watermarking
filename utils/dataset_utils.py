@@ -8,8 +8,8 @@ import re
 import spacy
 from tqdm import tqdm
 
-RAW_DATA_DIR = "../data/raw_data"
-CACHE_DIR= "../data/cache"
+RAW_DATA_DIR = "./data/raw_data"
+CACHE_DIR= "./data/cache"
 
 class Dataset(Enum):
   CUSTOM = 0
@@ -145,7 +145,7 @@ def roc_stories(split='train', data_dir=None, with_titles=True, exclude_nonstand
 def preprocess_imdb(corpus):
   CLEANR = re.compile('<.*?>')
   corpus = [re.sub(CLEANR, '', c) for c in corpus]
-  corpus = [re.sub(r"\.+", ".",c) for c in corpus]
+  corpus = [re.sub(r"\.+", "..", c) for c in corpus]
   return corpus
 
 
@@ -183,7 +183,8 @@ def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample,
     sentence_tokenized.append([sent for sent in doc.sents])
 
   l_threshold = np.quantile(lengths, cutoff_q[0])
-  u_threshold = np.quantile(lengths, cutoff_q[1])
+  # manually set upper threshold to 200 just to be safe when using Pretrained Tokenizers with maximum length=512.
+  u_threshold = min(np.quantile(lengths, cutoff_q[1]), 200)
 
   filtered = []
   num_skipped = 0

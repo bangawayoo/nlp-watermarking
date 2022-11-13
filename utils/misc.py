@@ -1,6 +1,9 @@
 import copy
-from itertools import product
+from datetime import datetime
+import logging
+import os
 import re
+
 
 from datasets import load_dataset
 import torch
@@ -11,6 +14,31 @@ try:
 except:
     print("Error importing yake")
 
+
+def get_logger(name):
+    now = datetime.now()
+    dt_string = now.strftime("%m%d_%H%M%S")
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+    logFormatter = logging.Formatter("%(asctime)s - %(threadName)s - %(levelname)s - %(message)s",
+                                     datefmt="%Y-%m-%d %H:%M:%S")
+
+    log_path = f"./logs/infill/{dt_string}.log"
+
+    log_dir = os.path.dirname(log_path)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
+    file_handler = logging.FileHandler(log_path)
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logFormatter)
+    logger.addHandler(file_handler)
+
+    streamHandler = logging.StreamHandler()
+    streamHandler.setLevel(logging.DEBUG)
+    streamHandler.setFormatter(logFormatter)
+    logger.addHandler(streamHandler)
+    return logger
 
 
 #https://www.kaggle.com/code/rowhitswami/keywords-extraction-using-tf-idf-method
@@ -120,7 +148,7 @@ def get_result_txt(result_txt):
     with open(f"{result_txt}", "r") as reader:
         for line in reader:
             line = line.split("\t")
-            if line:
+            if len(line) == 7:
                 # corpus idx
                 line[0] = int(line[0])
                 # sentence idx
@@ -131,7 +159,7 @@ def get_result_txt(result_txt):
                 # substituted index
                 line[3] = change_str_to_int(line[3].split(" "))
                 # watermarked text
-                line[4] = line[4]
+                line[4] = line[4].strip() if len(line[4]) >0 else ""
                 # substituted text
                 line[5] = [x.strip() for x in line[5].split(',')]
                 # embedded message
@@ -139,6 +167,8 @@ def get_result_txt(result_txt):
                     line[6] = [int(x) for x in line[6].strip().split(" ")]
                 else:
                     line[6] = []
+            else:
+                line = ["eos"] * 7
             results.append(line)
     return results
 
@@ -150,14 +180,6 @@ from nltk.corpus import stopwords
 
 import string
 
-tokenizer = AutoTokenizer.from_pretrained("bert-base-cased", is_split_into_words=True)
-pipe_fill_mask = pipeline('fill-mask', model='bert-base-cased', device=0, top_k=32)
-pipe_classification = pipeline(model="roberta-large-mnli", device=0, top_k=None)
-
-stop = set(stopwords.words('english'))
-puncuation = set(string.punctuation)
-riskset = stop.union(puncuation)
-sr_threshold=0.95
 
 def concatenate_for_ls(text, idx):
     masked_text = text.copy()
@@ -167,6 +189,15 @@ def concatenate_for_ls(text, idx):
 
 
 def generate_substitute_candidates(text_processed, idx, topk=2):
+    tokenizer = AutoTokenizer.from_pretrained("bert-base-cased", is_split_into_words=True)
+    pipe_fill_mask = pipeline('fill-mask', model='bert-base-cased', device=0, top_k=32)
+    pipe_classification = pipeline(model="roberta-large-mnli", device=0, top_k=None)
+
+    stop = set(stopwords.words('english'))
+    puncuation = set(string.punctuation)
+    riskset = stop.union(puncuation)
+    sr_threshold = 0.95
+
     text_for_ls = concatenate_for_ls(text_processed, idx)
     mask_candidates = pipe_fill_mask(text_for_ls)
 

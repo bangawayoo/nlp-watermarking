@@ -1,4 +1,3 @@
-#TODO:
 import logging
 import os
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
@@ -18,7 +17,8 @@ from nltk.corpus import stopwords
 from nltk.corpus import wordnet as wn
 import nltk
 
-from utils import *
+from config import GenericArgs
+from utils.misc import get_logger, compute_ber, get_result_txt
 
 
 lemmatizer = WordNetLemmatizer()
@@ -28,15 +28,6 @@ from IPython.display import display
 stop = set(stopwords.words('english'))
 punctuation = set(string.punctuation)
 riskset = stop.union(punctuation)
-
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-logFormatter = logging.Formatter("%(asctime)s - %(threadName)s - %(levelname)s - %(message)s",
-                                 datefmt="%Y-%m-%d %H:%M:%S")
-
-file_handler = logging.FileHandler(f"./logs/{sys.argv[-1]}.log")
-file_handler.setFormatter(logFormatter)
-logger.addHandler(file_handler)
 
 
 def synchronicity_test(index, local_context):
@@ -190,127 +181,129 @@ def main(cover_text, f, extracting=False):
     return substituted_idset, substituted_indices, watermarking_wordset, encoded_text, message
 
 
-##
 
-tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
-pipe_fill_mask = pipeline('fill-mask', model='bert-base-cased', device=0, top_k=32)
-pipe_classification = pipeline(model="roberta-large-mnli", device=0, top_k=None)
-
-
-##
-from datasets import load_dataset
-from dataset_utils import arxiv_cs_abstracts, roc_stories, preprocess_imdb, preprocess2sentence
-import sys
-import spacy
+if __name__ == "__main__":
+    args = GenericArgs()
+    logger = get_logger(args)
+    tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
+    pipe_fill_mask = pipeline('fill-mask', model='bert-base-cased', device=0, top_k=32)
+    pipe_classification = pipeline(model="roberta-large-mnli", device=0, top_k=None)
 
 
-f = 1
-sr_threshold = 0.95
-dtype = "imdb"
-start_sample_idx = 0
-num_sample = 100
-# corpus = arxiv_cs_abstracts("train",  attrs=['abstract'])
-corpus = load_dataset("imdb")['test']['text']
-result_dir = f"results/context-ls-{dtype}-{start_sample_idx}-{start_sample_idx+num_sample}.txt"
-
-cover_texts = [t.replace("\n", " ") for t in corpus]
-cover_texts = preprocess_imdb(cover_texts)
-cover_texts = preprocess2sentence(cover_texts, start_sample_idx, num_sample)
-
-bit_count = 0
-word_count = 0
+    ##
+    from datasets import load_dataset
+    from utils.dataset_utils import arxiv_cs_abstracts, roc_stories, preprocess_imdb, preprocess2sentence
+    import sys
+    import spacy
 
 
-if sys.argv[1] == "embed":
-    # assert not os.path.isfile(result_dir), f"{result_dir} already exists!"
-    wr = open(result_dir, "w")
-    for c_idx, sentences in enumerate(tqdm(cover_texts)):
-        for sen_idx, sen in enumerate(sentences):
-            logger.info(sen)
-            substituted_idset, substituted_indices, watermarking_wordset, encoded_text, message = main(sen, f)
-            punct_removed = sen.translate(str.maketrans(dict.fromkeys(string.punctuation)))
-            word_count += len([i for i in punct_removed.split(" ") if i not in stop])
-            bit_count += len(substituted_idset)
-
-            s_idset_str = ""
-            for s_id in substituted_idset:
-                s_idset_str += " ".join(str(x) for x in s_id) + ","
-            s_indices_str = " ".join(str(x) for x in substituted_indices)
-            message_str = [str(m) for m in message]
-            message_str = " ".join(message_str) if len(message_str) else ""
-            watermarked_text = tokenizer.decode(encoded_text['input_ids'])
-            keys = [tokenizer.decode(s_id) for s_id in substituted_idset]
-            keys_str = ", ".join(keys)
-            wr.write(f"{c_idx}\t{sen_idx}\t{s_idset_str}\t{s_indices_str}\t"
-                     f"{watermarked_text}\t{keys_str}\t{message_str}\n")
-        logger.info(f"Sample{c_idx} bpw={bit_count / word_count:.3f}")
-
-    wr.close()
-
-    with open("results/bpw.txt", "a") as wr:
-        wr.write(f"{dtype}-{num_sample}\t {bit_count/word_count}\n")
-
-##
-import random
-
-if sys.argv[1] == "extract":
+    f = 1
+    sr_threshold = 0.95
     dtype = "imdb"
     start_sample_idx = 0
     num_sample = 100
+    # corpus = arxiv_cs_abstracts("train",  attrs=['abstract'])
+    corpus = load_dataset("imdb")['test']['text']
     result_dir = f"results/context-ls-{dtype}-{start_sample_idx}-{start_sample_idx+num_sample}.txt"
-    corrupted_flag = True
-    corrupted_dir = "./results/context-ls-imdb-corrupted=0.1.txt"
-    corrupted_watermarked = []
-    with open(corrupted_dir, "r") as reader:
-        for line in reader:
-            corrupted_watermarked.append(line)
 
-    clean_watermarked = get_result_txt(result_dir)
+    cover_texts = [t.replace("\n", " ") for t in corpus]
+    cover_texts = preprocess_imdb(cover_texts)
+    cover_texts = preprocess2sentence(cover_texts, start_sample_idx, num_sample)
 
-    num_corrupted_sen = 0
-    sample_level_bit = {'gt':[], 'extracted':[]}
-    bit_error_agg = {}
-
-    prev_c_idx = 0
-    for idx, (c_idx, sen_idx, sub_idset, sub_idx, wm_sen, key, msg) in enumerate(clean_watermarked):
-        if prev_c_idx != c_idx:
-            error_cnt, cnt = compute_ber(sample_level_bit['extracted'], sample_level_bit['gt'])
-            bit_error_agg['sample_err_cnt'] = bit_error_agg.get('sample_err_cnt', 0) + error_cnt
-            bit_error_agg['sample_cnt'] = bit_error_agg.get('sample_cnt', 0) + cnt
-            sample_level_bit = {'gt':[], 'extracted':[]}
-            prev_c_idx = c_idx
-
-        original_sentences = cover_texts[c_idx]
-        sen = original_sentences[sen_idx]
-        corrupted_sen = corrupted_watermarked[idx].strip() if corrupted_flag else wm_sen
-
-        if corrupted_flag and (corrupted_sen == "skipped" or len(msg) == 0):
-            continue
-
-        num_corrupted_sen += 1
-        extracted_idset, extracted_indices, watermarking_wordset, encoded_text, message = \
-            main(corrupted_sen, f, extracting=True)
-        extracted_key = [tokenizer.decode(s_id) for s_id in extracted_idset]
-
-        sample_level_bit['extracted'].extend(message)
-        sample_level_bit['gt'].extend(msg)
-        error_cnt, cnt = compute_ber(msg, message)
-        bit_error_agg['sentence_err_cnt'] = bit_error_agg.get('sentence_err_cnt', 0) + error_cnt
-        bit_error_agg['sentence_cnt'] = bit_error_agg.get('sentence_cnt', 0) + cnt
-
-        match_flag = error_cnt == 0
-        logger.info(f"{c_idx} {sen_idx} {match_flag}")
-        logger.info(f"Corrupted sentence: {corrupted_sen}")
-        logger.info(f"original sentence: {sen}")
-        logger.info(f"Extracted msg: {' '.join(extracted_key)}")
-        logger.info(f"Gt msg: {' '.join(key)} \n")
+    bit_count = 0
+    word_count = 0
 
 
-    logger.info(f"Corruption Rate: {num_corrupted_sen / len(clean_watermarked):3f}")
-    logger.info(f"Sample BER: {bit_error_agg['sample_err_cnt'] / bit_error_agg['sample_cnt']:.3f}")
-    logger.info(f"Sentence BER: {bit_error_agg['sentence_err_cnt'] / bit_error_agg['sentence_cnt']:.3f}")
+    if sys.argv[1] == "embed":
+        # assert not os.path.isfile(result_dir), f"{result_dir} already exists!"
+        wr = open(result_dir, "w")
+        for c_idx, sentences in enumerate(tqdm(cover_texts)):
+            for sen_idx, sen in enumerate(sentences):
+                logger.info(sen)
+                substituted_idset, substituted_indices, watermarking_wordset, encoded_text, message = main(sen, f)
+                punct_removed = sen.translate(str.maketrans(dict.fromkeys(string.punctuation)))
+                word_count += len([i for i in punct_removed.split(" ") if i not in stop])
+                bit_count += len(substituted_idset)
 
-    with open("./results/ber.txt", "a") as wr:
-        wr.write(f"{dtype}-{num_sample}\t {bit_error_agg['sentence_err_cnt']/bit_error_agg['sentence_cnt']}\t"
-                 f"{bit_error_agg['sample_err_cnt']/bit_error_agg['sample_cnt']}"
-                 f"\n")
+                s_idset_str = ""
+                for s_id in substituted_idset:
+                    s_idset_str += " ".join(str(x) for x in s_id) + ","
+                s_indices_str = " ".join(str(x) for x in substituted_indices)
+                message_str = [str(m) for m in message]
+                message_str = " ".join(message_str) if len(message_str) else ""
+                watermarked_text = tokenizer.decode(encoded_text['input_ids'])
+                keys = [tokenizer.decode(s_id) for s_id in substituted_idset]
+                keys_str = ", ".join(keys)
+                wr.write(f"{c_idx}\t{sen_idx}\t{s_idset_str}\t{s_indices_str}\t"
+                         f"{watermarked_text}\t{keys_str}\t{message_str}\n")
+            logger.info(f"Sample{c_idx} bpw={bit_count / word_count:.3f}")
+
+        wr.close()
+
+        with open("results/bpw.txt", "a") as wr:
+            wr.write(f"{dtype}-{num_sample}\t {bit_count/word_count}\n")
+
+    ##
+    import random
+
+    if sys.argv[1] == "extract":
+        dtype = "imdb"
+        start_sample_idx = 0
+        num_sample = 100
+        result_dir = f"results/context-ls-{dtype}-{start_sample_idx}-{start_sample_idx+num_sample}.txt"
+        corrupted_flag = True
+        corrupted_dir = "./results/context-ls-imdb-corrupted=0.1.txt"
+        corrupted_watermarked = []
+        with open(corrupted_dir, "r") as reader:
+            for line in reader:
+                corrupted_watermarked.append(line)
+
+        clean_watermarked = get_result_txt(result_dir)
+
+        num_corrupted_sen = 0
+        sample_level_bit = {'gt':[], 'extracted':[]}
+        bit_error_agg = {}
+
+        prev_c_idx = 0
+        for idx, (c_idx, sen_idx, sub_idset, sub_idx, wm_sen, key, msg) in enumerate(clean_watermarked):
+            if prev_c_idx != c_idx:
+                error_cnt, cnt = compute_ber(sample_level_bit['extracted'], sample_level_bit['gt'])
+                bit_error_agg['sample_err_cnt'] = bit_error_agg.get('sample_err_cnt', 0) + error_cnt
+                bit_error_agg['sample_cnt'] = bit_error_agg.get('sample_cnt', 0) + cnt
+                sample_level_bit = {'gt':[], 'extracted':[]}
+                prev_c_idx = c_idx
+
+            original_sentences = cover_texts[c_idx]
+            sen = original_sentences[sen_idx]
+            corrupted_sen = corrupted_watermarked[idx].strip() if corrupted_flag else wm_sen
+
+            if corrupted_flag and (corrupted_sen == "skipped" or len(msg) == 0):
+                continue
+
+            num_corrupted_sen += 1
+            extracted_idset, extracted_indices, watermarking_wordset, encoded_text, message = \
+                main(corrupted_sen, f, extracting=True)
+            extracted_key = [tokenizer.decode(s_id) for s_id in extracted_idset]
+
+            sample_level_bit['extracted'].extend(message)
+            sample_level_bit['gt'].extend(msg)
+            error_cnt, cnt = compute_ber(msg, message)
+            bit_error_agg['sentence_err_cnt'] = bit_error_agg.get('sentence_err_cnt', 0) + error_cnt
+            bit_error_agg['sentence_cnt'] = bit_error_agg.get('sentence_cnt', 0) + cnt
+
+            match_flag = error_cnt == 0
+            logger.info(f"{c_idx} {sen_idx} {match_flag}")
+            logger.info(f"Corrupted sentence: {corrupted_sen}")
+            logger.info(f"original sentence: {sen}")
+            logger.info(f"Extracted msg: {' '.join(extracted_key)}")
+            logger.info(f"Gt msg: {' '.join(key)} \n")
+
+
+        logger.info(f"Corruption Rate: {num_corrupted_sen / len(clean_watermarked):3f}")
+        logger.info(f"Sample BER: {bit_error_agg['sample_err_cnt'] / bit_error_agg['sample_cnt']:.3f}")
+        logger.info(f"Sentence BER: {bit_error_agg['sentence_err_cnt'] / bit_error_agg['sentence_cnt']:.3f}")
+
+        with open("./results/ber.txt", "a") as wr:
+            wr.write(f"{dtype}-{num_sample}\t {bit_error_agg['sentence_err_cnt']/bit_error_agg['sentence_cnt']}\t"
+                     f"{bit_error_agg['sample_err_cnt']/bit_error_agg['sample_cnt']}"
+                     f"\n")

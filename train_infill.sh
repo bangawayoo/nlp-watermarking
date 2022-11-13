@@ -1,9 +1,8 @@
-DEBUG="False"
-EVAL_ONLY="False"
-MODEL_CKPT=""
-EXP_NAME=""
-
-DATA_TYPE="IMDB"
+DEBUG="True"
+EVAL_ONLY="True"
+MODEL_CKPT="bert-base-cased"
+EXP_NAME="1000-samples"
+DATA_TYPE="imdb"
 
 
 python models/infill.py \
@@ -12,3 +11,5 @@ python models/infill.py \
 --model_ckpt $MODEL_CKPT \
 --exp_name $EXP_NAME \
 --data_type $DATA_TYPE
+
+

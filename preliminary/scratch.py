@@ -1,8 +1,30 @@
+
+
+
+yake_kwargs = {'lan': "en",
+               "n": 1,
+               "dedupLim": 0.9,
+               "dedupFunc": 'seqm',
+               "windowsSize": 1,
+               }
+
+import yake
+from datasets import load_dataset
+corpus = load_dataset('imdb')['train']['text']
+sample = corpus[0]
+kw_extractor = yake.KeywordExtractor(**yake_kwargs, top=20)
+keywords = kw_extractor.extract_keywords(sample)  # dict of {phrase: score}
+keywords
+
+for pn in PN:
+    print(pn)
+    print(list(pn.children), end=" ")
+    print(pn.head, end="\n\n")
+
 ##
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = "2"
 os.chdir(os.path.join(os.getcwd(), "./preliminary"))
-import sys
 from preliminary.dataset_utils import arxiv_cs_abstracts, roc_stories
 
 corpus = arxiv_cs_abstracts("train", attrs=['title', 'abstract'])
@@ -11,7 +33,6 @@ corpus = [i.replace("\n", " ") for i in corpus]
 # corpus = roc_stories("test")
 # corpus = [i.replace("\n", " ") for i in corpus]
 
-import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from nltk.corpus import stopwords
 from preliminary.utils import *
@@ -27,7 +48,7 @@ feature_names = vectorizer.get_feature_names_out()
 
 
 ##
-from random import choice, sample
+from random import sample
 import re
 
 sample_idx = 2
@@ -124,7 +145,6 @@ for fidx in fill_idx:
 
 
 ##
-from ilm.tokenize_util import decode_with_color
 
 num_generate = 10
 generated, g_idx, terminated, g_spans = infill_with_ilm(

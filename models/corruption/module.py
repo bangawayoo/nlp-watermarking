@@ -10,8 +10,7 @@ from textattack.constraints.semantics.sentence_encoders import UniversalSentence
 import transformers
 from tqdm import tqdm
 
-from utils import get_result_txt
-
+from utils.misc import get_result_txt
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -65,9 +64,9 @@ class Attacker:
     def attack_sentence(self):
         skipped_cnt = 0
         for idx, (c_idx, sen_idx, sub_idset, sub_idx, wm_sen, key, msg) in enumerate(tqdm(self.texts)):
+            logger.info(f"{c_idx} {sen_idx}")
             if msg:
                 corrupted_sentence = self.augmenter.augment(wm_sen)[0]
-                print(len(wm_sen.split(" ")))
                 logger.info(corrupted_sentence)
                 logger.info(wm_sen)
                 if len(corrupted_sentence) == len(wm_sen):
@@ -78,6 +77,8 @@ class Attacker:
                 skipped_cnt += 1
 
             self.wr.write(corrupted_sentence + "\n")
+
+        self.wr.close()
 
         logger.info(f"Skipped {skipped_cnt} out of {len(self.texts)} sentences")
 
@@ -103,7 +104,7 @@ class Attacker:
             for sen in sentence_agg:
                 self.wr.write(sen + "\n")
 
-
+            self.wr.close()
             augmented_data.extend(sentence_agg)
             sentence_agg = [wm_sen]
             prev_idx = c_idx
