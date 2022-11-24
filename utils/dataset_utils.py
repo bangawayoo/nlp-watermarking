@@ -1,5 +1,4 @@
 from enum import Enum
-import logging
 import os
 import pickle
 import numpy as np
@@ -7,9 +6,11 @@ import random
 import re
 import spacy
 from tqdm import tqdm
+from utils.logging import getLogger
 
 RAW_DATA_DIR = "./data/raw_data"
 CACHE_DIR= "./data/cache"
+logger = getLogger("DATASET_UTILS")
 
 class Dataset(Enum):
   CUSTOM = 0
@@ -144,6 +145,8 @@ def roc_stories(split='train', data_dir=None, with_titles=True, exclude_nonstand
 
 def preprocess_imdb(corpus):
   CLEANR = re.compile('<.*?>')
+  corpus = [t.replace("\n", " ") for t in corpus]
+  corpus = [t.replace("\t", " ") for t in corpus]
   corpus = [re.sub(CLEANR, '', c) for c in corpus]
   corpus = [re.sub(r"\.+", "..", c) for c in corpus]
   return corpus
@@ -153,25 +156,30 @@ def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample,
                         population_size=1000, cutoff_q=(0.05, 0.95),
                         spacy_model="en_core_web_sm"):
   population_size = max(population_size, start_sample_idx + num_sample)
+  population_size = 10
   id = f"{corpus_name}-{spacy_model}"
   if not os.path.isdir(CACHE_DIR):
     os.makedirs(CACHE_DIR ,exist_ok=True)
   file_dir = os.path.join(CACHE_DIR, id+".pkl")
 
   if os.path.isfile(file_dir):
-    logging.info(f"Using cache {file_dir}")
+    logger.info(f"Using cache {file_dir}")
     with open(file_dir, "rb") as f:
       docs = pickle.load(f)
   else:
-    logging.info(f"Processing corpus with {spacy_model}...")
+    logger.info(f"Processing corpus with {spacy_model}...")
     nlp = spacy.load(spacy_model)
     corpus = corpus[:population_size]
     docs = []
-    num_workers = 1 if "trf" in spacy_model else 4
-    for doc in nlp.pipe(corpus, n_process=num_workers):
-      docs.append(doc)
+    num_workers = 4
+    if "trf" in spacy_model:
+      for c in corpus:
+        docs.append(nlp(c))
+    else:
+      for doc in nlp.pipe(corpus, n_process=num_workers):
+        docs.append(doc)
 
-    logging.info(f"Caching preprocessed sentences")
+    logger.info(f"Caching preprocessed sentences")
     with open(file_dir, "wb") as f:
       pickle.dump(docs, f)
 
@@ -196,7 +204,7 @@ def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample,
     num_processed += len(sentences)
     filtered.append(sentences)
 
-  logging.info(f"{num_processed} sentences processed, {num_skipped} sentences skipped")
+  logger.info(f"{num_processed} sentences processed, {num_skipped} sentences skipped")
   return filtered
 
 

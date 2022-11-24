@@ -96,11 +96,10 @@ class KeywordExtractor:
         keyword_list = [k[0] for k in keyword]
 
         for token in sentence:
-            if token.text in keyword_list:
+            if token.text in keyword_list and token.pos_ in ["NOUN", "PROPN"]:
                 idx = keyword_list.index(token.text)
                 output.append([token, keyword[idx][1]])
                 keyword_list.remove(token.text)
-
         return output
 
     def _extract_entity(self, sentence):
@@ -151,5 +150,4 @@ if __name__ == "__main__":
 
     kwd_module = KeywordExtractor()
     keyword = kwd_module.extract_keyword(cover_texts[0])
-    print(keyword)
     # breakpoint()

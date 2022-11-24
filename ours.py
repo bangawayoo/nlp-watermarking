@@ -9,29 +9,38 @@ import string
 import sys
 
 import torch
+from sentence_transformers import SentenceTransformer, util
 
 from models.infill import InfillModel
 from utils.dataset_utils import preprocess2sentence, preprocess_imdb
 from utils.logging import getLogger
-from config import InfillArgs, stop
+from utils.metric import Metric
+from config import InfillArgs, GenericArgs, stop
 
-parser = InfillArgs()
-args = parser.parse_args()
-model = InfillModel(args)
+random.seed(1230)
 
-dtype = 'imdb'
+infill_parser = InfillArgs()
+generic_parser = GenericArgs()
+infill_args, _ = infill_parser.parse_known_args()
+generic_args, _ = generic_parser.parse_known_args()
+model = InfillModel(infill_args)
+DEBUG_MODE = generic_args.debug_mode
+
+dtype = generic_args.dtype
 start_sample_idx = 0
-num_sample = 50
-corpus = load_dataset(dtype)['test']['text']
-cover_texts = [t.replace("\n", " ") for t in corpus]
-cover_texts = preprocess_imdb(cover_texts)
-cover_texts = preprocess2sentence(cover_texts, dtype + "-test", start_sample_idx, num_sample,
-                                  spacy_model="en_core_web_sm")
+num_sample = generic_args.num_sample
+# corpus = load_dataset(dtype)['test']['text']
+# cover_texts = [t.replace("\n", " ") for t in corpus]
+# cover_texts = preprocess_imdb(cover_texts)
+# cover_texts = preprocess2sentence(cover_texts, dtype + "-test", start_sample_idx, num_sample,
+#                                   spacy_model=infill_args.spacy_model)
+
+_, cover_texts = model.return_dataset()
+cover_texts = cover_texts[:num_sample]
 
 
 ##
-EMBED = False
-spacy_tokenizer = spacy.load("en_core_web_sm")
+spacy_tokenizer = spacy.load(generic_args.spacy_model)
 bit_count = 0
 word_count = 0
 
@@ -43,10 +52,19 @@ sample_cnt = 0
 
 one_cnt = 0 
 zero_cnt = 0
+metric = Metric(**vars(generic_args))
 
-if EMBED:
-    logger = getLogger("EMBED")
-    result_dir = f"results/ours/{dtype}.txt"
+dirname = f"results/ours/{dtype}/{generic_args.exp_name}"
+if not os.path.exists(dirname):
+    os.makedirs(dirname, exist_ok=True)
+
+if generic_args.embed:
+    logger = getLogger("EMBED",
+                       dir_=f"ours/{dtype}/{generic_args.exp_name}",
+                       debug_mode=DEBUG_MODE)
+
+
+    result_dir = os.path.join(dirname, "watermarked.txt")
     if not os.path.exists(result_dir):
         os.makedirs(os.path.dirname(result_dir), exist_ok=True)
     wr = open(result_dir, "w")
@@ -54,12 +72,13 @@ if EMBED:
         for s_idx, sen in enumerate(sentences):
             sen = spacy_tokenizer(sen.text)
             all_keywords, entity_keywords = model.keyword_module.extract_keyword([sen])
+
             # sen_text = sen.text
             logger.debug(f"{c_idx} {s_idx}")
             keyword = all_keywords[0]
             ent_keyword = entity_keywords[0]
     
-            agg_cwi, mask_idx, mask_word  = model.run_iter(sen, keyword, ent_keyword, train_flag=False, embed_flag=True)
+            agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word)  = model.run_iter(sen, keyword, ent_keyword, train_flag=False, embed_flag=True)
     
             # check if keyword & mask_indices matches
             valid_watermarks= []
@@ -71,19 +90,26 @@ if EMBED:
                     wm_text = tokenized_text.copy()
                     for m_idx, c_id in zip(mask_idx, cwi):
                         wm_text[m_idx] = re.sub(r"\S+", model.tokenizer.decode(c_id), wm_text[m_idx])
+
                     wm_tokenized = spacy_tokenizer("".join(wm_text).strip())
+                    # filter out if the parsing tree has been modified
+                    # how to determine modified?
+                    for m_idx, m_word in zip(mask_idx, mask_word):
+                        new_pos = [t for t in wm_tokenized][m_idx].pos_
+                        pos = m_word.pos_
+                        # print(wm_text)
+                        # print([t for t in wm_tokenized][m_idx])
+                        # print(new_pos)
+                        # print(pos)
+                        # breakpoint()
+                        if new_pos != pos:
+                            continue
+
                     # extract keyword of watermark
                     wm_keywords, wm_ent_keywords = model.keyword_module.extract_keyword([wm_tokenized])
                     wm_kwd = wm_keywords[0]
                     wm_ent_kwd = wm_ent_keywords[0]
-
-                    wm_mask = []
-                    wm_mask_idx = []
-                    for k in wm_kwd:
-                        if k.head not in wm_kwd and k.head not in wm_mask and\
-                        k.head not in wm_ent_kwd and not k.head.is_punct:
-                            wm_mask.append(k.head)
-                            wm_mask_idx.append(k.head.i)
+                    wm_mask_idx, wm_mask = model.mask_selector.return_mask(wm_tokenized, wm_kwd, wm_ent_kwd)
 
                     kwd_match_flag = set([x.text for x in wm_kwd]) == set([x.text for x in keyword])
                     if kwd_match_flag:
@@ -94,12 +120,19 @@ if EMBED:
                     if mask_match_flag:
                         valid_watermarks.append(wm_tokenized.text)
                         mask_match_cnt += 1
+
+                    # if kwd_match_flag and not mask_match_flag:
+                    #     logger.info(f"kwd: {wm_kwd}")
+                    #     logger.info(f"{sen.text}")
+                    #     logger.info(f"mask: {mask_word}")
+                    #     logger.info(f"{''.join(wm_text)}")
+                    #     logger.info(f"wm mask: {wm_mask}\n")
+
                     sample_cnt += 1
                     candidate_kwd_cnt += 1
     
             punct_removed = sen.text.translate(str.maketrans(dict.fromkeys(string.punctuation)))
             word_count += len([i for i in punct_removed.split(" ") if i not in stop])
-            # valid_watermarks = valid_watermarks[:len(valid_watermarks) // 2 * 2]
             if len(valid_watermarks) > 1:
                 bit_count += math.log2(len(valid_watermarks))
                 random_msg_decimal = random.choice(range(len(valid_watermarks)))
@@ -112,9 +145,15 @@ if EMBED:
                 one_cnt += len([i for i in message_str if i =="1"])
                 zero_cnt += len([i for i in message_str if i =="0"])
 
+                keys = []
+                wm_tokenized = spacy_tokenizer(wm_text)
+                for m_idx in mask_idx:
+                    keys.append(wm_tokenized[m_idx].text)
+                keys_str = ", ".join(keys)
+
                 message_str = ' '.join(message_str) if len(message_str) else ""
                 wr.write(f"{c_idx}\t{s_idx}\t \t \t"
-                         f"{''.join(wm_text)}\t \t{message_str}\n")
+                         f"{''.join(wm_text)}\t{keys_str}\t{message_str}\n")
             else:
                 original_text = ''.join(tokenized_text)
                 wr.write(f"{c_idx}\t{s_idx}\t \t \t"
@@ -129,38 +168,39 @@ if EMBED:
     logger.info(f"mask match rate: {mask_match_cnt / sample_cnt:.3f}")
     logger.info(f"kwd match rate: {kwd_match_cnt / sample_cnt :.3f}")
     logger.info(f"zero/one ratio: {zero_cnt / one_cnt :.3f}")
-    
-    result_dir = "results/ours/bpw.txt"
-    if not os.path.exists(result_dir):
-        os.makedirs(os.path.dirname(result_dir), exist_ok=True)
+    ss_score = metric.compute_ss(result_dir, cover_texts)
+    logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
+
+
+    result_dir = os.path.join(dirname, "embed-metrics.txt")
     with open(result_dir, "a") as wr:
-        wr.write(f"{dtype}-{num_sample}\t {bit_count / word_count}\n")
+        wr.write(f"num.sample={num_sample}\t bpw={bit_count / word_count}\t ss={sum(ss_score)/len(ss_score):}\n")
       
       
 ##
 from utils.misc import get_result_txt, compute_ber
 
-EXTRACT = True
-
-if EXTRACT:
-    corrupted_flag = True
-    logger = getLogger(f"EXTRACT-CORRUPTED" if corrupted_flag else "EXTRACT")
-    dtype = "imdb"
+if generic_args.extract:
+    corrupted_flag = generic_args.extract_corrupted
+    logger = getLogger(f"EXTRACT-CORRUPTED" if corrupted_flag else "EXTRACT",
+                       dir_=f"ours/{dtype}/{generic_args.exp_name}", debug_mode=DEBUG_MODE)
     start_sample_idx = 0
-    num_sample = 50
-    result_dir = f"results/ours/{dtype}.txt"
-    corrupted_dir = "./results/ours/imdb-corrupted=0.05.txt"
-    corrupted_watermarked = []
-    with open(corrupted_dir, "r") as reader:
-        for line in reader:
-            corrupted_watermarked.append(line)
+
+    result_dir = os.path.join(dirname, "watermarked.txt")
+    if corrupted_flag:
+        corrupted_dir = generic_args.corrupted_file_dir
+        logger.info(f"Extracting corrupted watermarks on {corrupted_dir}...")
+        corrupted_watermarked = []
+        with open(corrupted_dir, "r") as reader:
+            for line in reader:
+                corrupted_watermarked.append(line)
 
     clean_watermarked = get_result_txt(result_dir)
     num_corrupted_sen = 0
 
     prev_c_idx = 0
     agg_msg = []
-    bit_error_agg = {}
+    bit_error_agg = {"sentence_err_cnt":0, "sentence_cnt":0}
     infill_match_cnt = 0
     infill_match_cnt2 = 0
 
@@ -168,36 +208,39 @@ if EXTRACT:
     zero_cnt = 0
     one_cnt = 0
     kwd_match_cnt = 0
-    mask_match_cnt = 0
+    midx_match_cnt = 0
+    mword_match_cnt = 0
 
     # agg_sentences = ""
     # agg_msg = []
 
-    for idx, (c_idx, sen_idx, sub_idset, sub_idx, wm_text, key, msg) in enumerate(clean_watermarked):
-        wm_text = corrupted_watermarked[idx].strip() if corrupted_flag else wm_text.strip()
+    for idx, (c_idx, sen_idx, sub_idset, sub_idx, clean_wm_text, key, msg) in enumerate(clean_watermarked):
+        try:
+            wm_text = corrupted_watermarked[idx].strip() if corrupted_flag else clean_wm_text.strip()
+        except IndexError:
+            logger.debug("Create corrupted samples is less than watermarked. Ending extraction...")
+            break
         sen = spacy_tokenizer(wm_text.strip())
 
         all_keywords, entity_keywords = model.keyword_module.extract_keyword([sen])
         # for sanity check, one use the original (uncorrupted) texts
-        sentences_ = cover_texts[c_idx]
-        sen_ = spacy_tokenizer(sentences_[sen_idx].text)
+        sen_ = spacy_tokenizer(clean_wm_text.strip())
         all_keywords_, entity_keywords_ = model.keyword_module.extract_keyword([sen_])
 
         logger.info(f"{c_idx} {sen_idx}")
-
         # if attack has failed or no watermarked is embedded, skip
-        if corrupted_flag and (wm_text == "skipped" or len(msg) == 0):
+        if corrupted_flag and wm_text == "skipped":
             continue
 
         num_corrupted_sen += 1
         keyword = all_keywords[0]
         ent_keyword = entity_keywords[0]
-        agg_cwi, mask_idx, mask_word = model.run_iter(sen, keyword, ent_keyword, train_flag=False, embed_flag=True)
+        agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word) = model.run_iter(sen, keyword, ent_keyword, train_flag=False, embed_flag=True)
         wm_keys = model.tokenizer(" ".join([t.text for t in mask_word]), add_special_tokens=False)['input_ids']
 
         keyword_ = all_keywords_[0]
         ent_keyword_ = entity_keywords_[0]
-        agg_cwi_, mask_idx_, mask_word_ = model.run_iter(sen_, keyword_, ent_keyword_,
+        agg_cwi_, agg_probs_, tokenized_pt_, (mask_idx_pt_, mask_idx_, mask_word_) = model.run_iter(sen_, keyword_, ent_keyword_,
                                                          train_flag=False, embed_flag=True)
         kwd_match_flag = set([x.text for x in keyword]) == set([x.text for x in keyword_])
         if kwd_match_flag:
@@ -208,10 +251,13 @@ if EXTRACT:
             logger.info(f"Original Kwd: {keyword_}")
 
 
+        midx_match_flag = set(mask_idx) == set(mask_idx_)
+        if midx_match_flag:
+            midx_match_cnt += 1
 
-        mask_match_flag = set(mask_idx) == set(mask_idx_)
-        if mask_match_flag:
-            mask_match_cnt += 1
+        mword_match_flag = set([m.text for m in mask_word]) == set([m.text for m in mask_word_])
+        if mword_match_flag:
+            mword_match_cnt += 1
 
         num_mask_match_flag = len(mask_idx) == len(mask_idx_)
         if num_mask_match_flag:
@@ -219,7 +265,10 @@ if EXTRACT:
 
         infill_match_list = []
         for a, b in zip(agg_cwi, agg_cwi_):
-            infill_match_flag = (a == b).all()
+            if len(a) == len(b):
+                infill_match_flag = (a == b).all()
+            else:
+                infill_match_flag = False
             infill_match_list.append(infill_match_flag)
         if all(infill_match_list):
             infill_match_cnt += 1
@@ -239,14 +288,8 @@ if EXTRACT:
                 wm_keywords, wm_ent_keywords = model.keyword_module.extract_keyword([wm_tokenized])
                 wm_kwd = wm_keywords[0]
                 wm_ent_kwd = wm_ent_keywords[0]
+                wm_mask_idx, wm_mask = model.mask_selector.return_mask(wm_tokenized, wm_kwd, wm_ent_kwd)
 
-                wm_mask = []
-                wm_mask_idx = []
-                for k in wm_kwd:
-                    if k.head not in wm_kwd and k.head not in wm_mask and \
-                            k.head not in wm_ent_kwd and not k.head.is_punct:
-                        wm_mask.append(k.head)
-                        wm_mask_idx.append(k.head.i)
 
                 kwd_match_flag = set([x.text for x in wm_kwd]) == set([x.text for x in keyword])
                 # checking whether the watermark can be embedded
@@ -275,11 +318,8 @@ if EXTRACT:
         zero_cnt += len(msg) - sum(msg)
 
         error_cnt, cnt = compute_ber(msg, extracted_msg)
-        # if error_cnt:
-        #     breakpoint()
         bit_error_agg['sentence_err_cnt'] = bit_error_agg.get('sentence_err_cnt', 0) + error_cnt
         bit_error_agg['sentence_cnt'] = bit_error_agg.get('sentence_cnt', 0) + cnt
-
 
         # logger.info(f"Corrupted sentence: {corrupted_sen}")
         # logger.info(f"original sentence: {sen}")
@@ -289,14 +329,20 @@ if EXTRACT:
         # agg_sentences = ""
         # agg_msg = []
 
-    logger.info(f"Corruption Rate: {num_corrupted_sen / len(clean_watermarked):3f}")
-    logger.info(f"Sentence BER: {bit_error_agg['sentence_err_cnt']}/{bit_error_agg['sentence_cnt']} ="
+    if corrupted_flag:
+        logger.info(f"Corruption Rate: {num_corrupted_sen / len(corrupted_watermarked):3f}")
+        with open(os.path.join(dirname, "ber.txt"), "a") as wr:
+            wr.write(f"{corrupted_dir}\t {bit_error_agg['sentence_err_cnt'] / bit_error_agg['sentence_cnt']}\n")
+
+    logger.info(f"Sentence BER: {bit_error_agg['sentence_err_cnt']}/{bit_error_agg['sentence_cnt']}="
                 f"{bit_error_agg['sentence_err_cnt'] / bit_error_agg['sentence_cnt']:.3f}")
     logger.info(f"Infill match rate {infill_match_cnt/num_corrupted_sen:.3f}")
     # logger.info(f"Zero to One Ratio {zero_cnt / one_cnt:3f}")
-    logger.info(f"mask match rate: {mask_match_cnt / num_corrupted_sen:.3f}")
-    logger.info(f"num. mask match rate: {num_mask_match_cnt / num_corrupted_sen:.3f}")
+    logger.info(f"mask index match rate: {midx_match_cnt / num_corrupted_sen:.3f}")
+    logger.info(f"mask word match rate: {mword_match_cnt / num_corrupted_sen:.3f}")
     logger.info(f"kwd match rate: {kwd_match_cnt / num_corrupted_sen:.3f}")
+    logger.info(f"num. mask match rate: {num_mask_match_cnt / num_corrupted_sen:.3f}")
+
     # logger.info(f"Sample BER: {bit_error_agg['sample_err_cnt'] / bit_error_agg['sample_cnt']:.3f}")
 
             

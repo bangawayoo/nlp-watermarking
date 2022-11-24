@@ -30,17 +30,7 @@ class InfillModel:
     def __init__(self, args):
         self.device = torch.device('cuda')
         self.args = args
-        self.train_d = self.test_d = None
-        if args.train_infill:
-            self.train_d, self.test_d = self._init_dataset(args.data_type)
-            self.grad_cnt = 0
-            params = [p for p in self.lm_head.parameters()]
-            self.optimizer = torch.optim.Adam(params, lr=5e-5)
-            self.train_kwargs = {'epoch': 10,
-                                 'eval_ep_interval': 1,
-                                 'log_iter_interval': 1000
-                                 }
-
+        self.train_d, self.test_d = self._init_dataset(args.data_type)
         self.tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
         ckpt = "bert-base-cased" if args.model_ckpt is None else args.model_ckpt
         self.lm_head = AutoModelForMaskedLM.from_pretrained(ckpt).to(self.device)
@@ -48,22 +38,25 @@ class InfillModel:
         self.keyword_module = KeywordExtractor(ratio=0.05)
         self.mask_selector = MaskSelector()
         self.nlp = spacy.load(args.spacy_model)
-
+        self.grad_cnt = 0
+        params = [p for p in self.lm_head.parameters()]
+        self.optimizer = torch.optim.Adam(params, lr=5e-5)
         self.metric = {'entail_score':[], 'num_subs':[], 'train_entail_score':[]}
         self.best_metric = {'entail_score': 0}
+        self.train_kwargs = {'epoch':10,
+                             'eval_ep_interval':1,
+                             'log_iter_interval':1000
+                             }
 
-
-    def fill_mask(self, text, mask_idx_token, train_flag=True, topk=4, embed_flag=False):
+    def fill_mask(self, text, mask_idx_str, train_flag=True, topk=4, embed_flag=False):
         """
         text: Spacy.Span object (sentence of Spacy.Doc)
-        mask_idx_token: List[index of masks in Spacy tokens] (c.f. mask_idx_pt: mask index in Pytorch Tensors)
-
         """
         tokenized_text = [token.text_with_ws for token in text]
         tokenized_text_masked = tokenized_text.copy()
 
         # mask all selected tokens
-        for m_idx in mask_idx_token:
+        for m_idx in mask_idx_str:
             tokenized_text_masked[m_idx] = re.sub(r"\S+", self.tokenizer.special_tokens_map['mask_token'],
                                              tokenized_text_masked[m_idx])
 
@@ -78,42 +71,46 @@ class InfillModel:
             with torch.no_grad():
                 logits = self.lm_head(**inputs).logits
 
-        mask_idx_pt = torch.nonzero(inputs['input_ids'] == self.tokenizer.mask_token_id, as_tuple=True)
+        masked_idx_pt = torch.nonzero(inputs['input_ids'] == self.tokenizer.mask_token_id, as_tuple=True)
 
-        if mask_idx_pt[0].numel()==0 :
+        if masked_idx_pt[0].numel()==0 :
             return [], None
 
-        mask_logits = logits[mask_idx_pt]
+        mask_logits = logits[masked_idx_pt]
         probs = mask_logits.softmax(dim=-1)
         sorted_probs, prob_indices = torch.sort(probs, dim=-1, descending=True)
 
         agg_cwi = []
         agg_probs = []
-        valid_input = [True for _ in range(len(mask_idx_token))]
+        valid_input = [True for _ in range(len(mask_idx_str))]
         avg_num_cand = 0
 
         # filter the chosen tokens
-        for idx, m_idx_token in enumerate(mask_idx_token):
+        for idx, m_idx_str in enumerate(mask_idx_str):
             candidate_word_ids = self._filter_words(prob_indices[idx,:32].squeeze(),
-                                                        tokenized_text[m_idx_token], embed_flag=embed_flag).to(self.device)
+                                                        tokenized_text[m_idx_str], embed_flag=embed_flag).to(self.device)
 
             avg_num_cand += len(candidate_word_ids)
-            if len(candidate_word_ids) == 0: # skip this example, if no candidate word survives
+            if len(candidate_word_ids) == 0:
+                # candidate_word_ids = inputs['input_ids'][idx, m_idx].clone().repeat(topk)
                 valid_input[idx] = False
                 continue
             else:
                 candidate_word_ids = candidate_word_ids[:topk]
                 # candidate_word_ids = candidate_word_ids
 
+            # compared_inputs = inputs['input_ids'].clone().repeat(topk, 1) # (batch, seq)
             agg_cwi.append(candidate_word_ids)
             agg_probs.append(sorted_probs[idx, :len(candidate_word_ids)])
+            # compared_inputs[:, masked_idx_pt[1][idx]] = candidate_word_ids
             logger.debug(self.tokenizer.decode(candidate_word_ids))
-        avg_num_cand /= len(mask_idx_token)
+            # candidate_text_ids.append(compared_inputs)
+        avg_num_cand /= len(mask_idx_str)
 
-        return agg_cwi, agg_probs, mask_idx_pt, inputs
-        
-        
-    def generate_candidate_sentence(self, agg_cwi, agg_probs, mask_idx_pt, tokenized_pt):
+        if embed_flag:
+            return agg_cwi, mask_idx_str
+
+        entail_score = None
         candidate_texts = None
         if len(agg_cwi) > 0 :
             candidate_text_ids = []
@@ -121,8 +118,8 @@ class InfillModel:
 
             # permute through candidate words and probabilities
             for cwi, joint_prob in zip(product(*agg_cwi), product(*agg_probs)):
-                compared_inputs = tokenized_pt['input_ids'].clone()
-                for m_idx, c_id in zip(mask_idx_pt[1], cwi): #mask_idx_pt is a tuple of pt index; take the second axis's index
+                compared_inputs = inputs['input_ids'].clone()
+                for m_idx, c_id in zip(masked_idx_pt[1], cwi): #masked_idx_pt is a tuple of pt index; take the second axis's index
                     compared_inputs[:, m_idx] = c_id
                 joint_prob = reduce((lambda x,y: x*y), joint_prob)
                 candidate_text_jp.append(joint_prob)
@@ -130,27 +127,23 @@ class InfillModel:
 
             candidate_text_ids = torch.cat(candidate_text_ids, dim=0)
             candidate_texts = self.tokenizer.batch_decode(candidate_text_ids, skip_special_tokens=True)
-
-        return candidate_texts, candidate_text_jp
-
-
-    def compute_nli(self, candidate_texts, candidate_text_jp, text, train_flag=False):
-        # run NLI with the original input
-        reward, entail_score = self.nli_reward.compute_reward(candidate_texts, text, candidate_text_jp)
-        regret = -1 * reward
-        if train_flag:
-            regret.backward()
-        self.grad_cnt += len(entail_score)
-        logger.debug(candidate_texts)
-        logger.debug(f"Entailment score {entail_score.mean().item():.3f}")
-        # logger.info(f"Substituted texts: {self.tokenizer.decode(chosen_word_idx)}")
-        # logger.info(sum([p.grad.norm() for p in self.lm_head.parameters()]))
-        # logger.info(entail_score.mean().item())
-        if train_flag:
-            self.metric['train_entail_score'].extend(entail_score.tolist())
-        else:
-            self.metric['entail_score'].extend(entail_score.tolist())
-            self.metric['num_subs'].append(len(candidate_texts))
+            # run NLI with the original input
+            reward, entail_score = self.nli_reward.compute_reward(candidate_texts, text.text, candidate_text_jp)
+            regret = -1 * reward
+            if train_flag:
+                regret.backward()
+            self.grad_cnt += len(entail_score)
+            logger.debug(candidate_texts)
+            logger.debug(f"Entailment score {entail_score.mean().item():.3f}")
+            logger.debug(f"Masked text: {[tokenized_text[m_idx]  for m_idx in mask_idx_str]}\n")
+            # logger.info(f"Substituted texts: {self.tokenizer.decode(chosen_word_idx)}")
+            # logger.info(sum([p.grad.norm() for p in self.lm_head.parameters()]))
+            # logger.info(entail_score.mean().item())
+            if train_flag:
+                self.metric['train_entail_score'].extend(entail_score.tolist())
+            else:
+                self.metric['entail_score'].extend(entail_score.tolist())
+                self.metric['num_subs'].append(avg_num_cand)
 
         if self.grad_cnt >= 128 and train_flag:
             self.optimizer.step()
@@ -159,18 +152,17 @@ class InfillModel:
 
         return entail_score, candidate_texts
 
-
-    def run_iter(self, sen, keyword, ent_keyword, train_flag=True, embed_flag=True):
+    def run_iter(self, sen, keyword, ent_keyword, train_flag=True, embed_flag=False):
         # mask is selected dependent on the keywords
         mask_idx, mask_word = self.mask_selector.return_mask(sen, keyword, ent_keyword)
-        agg_cwi, agg_probs, tokenized_pt, mask_idx_pt = [], [], {}, []
-
+        candidate_word_ids = []
         if mask_idx:
-            agg_cwi, agg_probs, mask_idx_pt, tokenized_pt  = self.fill_mask(sen, mask_idx, train_flag=train_flag, embed_flag=embed_flag)
+            candidate_word_ids, mask_idx = self.fill_mask(sen, mask_idx, train_flag=train_flag, embed_flag=embed_flag)
 
-        return agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word)
+        if embed_flag:
+            return candidate_word_ids, mask_idx, mask_word
 
-    def train(self, nli_loss=False, robustness_loss=False):
+    def train(self):
         iteration = 1
         total_iteration = self.train_kwargs['epoch'] * sum([len(sentences) for sentences in self.train_d])
         for ep in range(self.train_kwargs['epoch']):
@@ -184,16 +176,7 @@ class InfillModel:
                     logger.debug(sen)
                     keyword = all_keywords[s_idx]
                     ent_keyword = entity_keywords[s_idx]
-                    agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word) = self.run_iter(sen, keyword, ent_keyword, train_flag=True)
-                    candidate_texts, candidate_text_jp = self.generate_candidate_sentence(agg_cwi, agg_probs, mask_idx_pt, tokenized_pt)
-                    if nli_loss:
-                        entail_score, candidate_texts = self.compute_nli(candidate_texts, candidate_text_jp, sen.text, train_flag=True)
-                        self.metric['train_entail_score'].extend(entail_score.tolist())
-
-
-                    if robustness_loss:
-                        pass
-
+                    self.run_iter(sen, keyword, ent_keyword, train_flag=True)
 
                     if (iteration+1) % self.train_kwargs['log_iter_interval'] == 0:
                         nli_score = torch.mean(torch.tensor(model.metric['train_entail_score'])).item()
@@ -219,21 +202,12 @@ class InfillModel:
                 logger.debug(sen)
                 keyword = all_keywords[s_idx]
                 ent_keyword = entity_keywords[s_idx]
-                agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word) = self.run_iter(sen, keyword,
-                                                                                                     ent_keyword,
-                                                                                                     train_flag=False)
-                candidate_texts, candidate_text_jp = self.generate_candidate_sentence(agg_cwi, agg_probs, mask_idx_pt,
-                                                                                      tokenized_pt)
-                entail_score, candidate_texts = self.compute_nli(candidate_texts, candidate_text_jp, sen.text,
-                                                                 train_flag=False)
-
-                self.metric['entail_score'].extend(entail_score.tolist())
-
+                self.run_iter(sen, keyword, ent_keyword, train_flag=False)
 
         if eval_ep:
             nli_score = torch.mean(torch.tensor(model.metric['entail_score'])).item()
-            # num_subs = torch.mean(torch.tensor(model.metric['num_subs'], dtype=float)).item()
-            logger.info(f"Eval at {eval_ep}: \n NLI: {nli_score:.3f}")
+            num_subs = torch.mean(torch.tensor(model.metric['num_subs'], dtype=float)).item()
+            logger.info(f"Eval at {eval_ep}: \n NLI: {nli_score:.3f}, # of candidates:{num_subs:1f}")
             if self.best_metric['entail_score'] < nli_score:
                 self.best_metric['entail_score'] = nli_score
                 ckpt_dir = f"./models/ckpt/{self.args.exp_name}-{dt_string}/best" if self.args.exp_name else \
