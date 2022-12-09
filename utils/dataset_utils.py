@@ -10,7 +10,7 @@ from utils.logging import getLogger
 
 RAW_DATA_DIR = "./data/raw_data"
 CACHE_DIR= "./data/cache"
-logger = getLogger("DATASET_UTILS")
+logger = getLogger("DATASET_UTILS", debug_mode=True)
 
 class Dataset(Enum):
   CUSTOM = 0
@@ -151,60 +151,95 @@ def preprocess_imdb(corpus):
   corpus = [re.sub(r"\.+", "..", c) for c in corpus]
   return corpus
 
+def change_str_to_int(listed_str):
+    if len(listed_str) < 1:
+      return
+    int_str = [int(elem) for elem in listed_str if elem.isdigit()]
+    return int_str
+
+def get_result_txt(result_txt):
+    results = []
+    with open(f"{result_txt}", "r") as reader:
+        for line in reader:
+            line = line.split("\t")
+            if len(line) == 7:
+                # corpus idx
+                line[0] = int(line[0])
+                # sentence idx
+                line[1] = int(line[1])
+                # substituted idset
+                line[2] = [change_str_to_int(listed_str.split(" ")) for
+                           listed_str in line[2].split(",")[:-1]]
+                # substituted index
+                line[3] = change_str_to_int(line[3].split(" "))
+                # watermarked text
+                line[4] = line[4].strip() if len(line[4]) >0 else ""
+                # substituted text
+                line[5] = [x.strip() for x in line[5].split(',')]
+                # embedded message
+                if line[6].strip():
+                    line[6] = [int(x) for x in line[6].strip().split(" ")]
+                else:
+                    line[6] = []
+            else:
+                line = ["eos"] * 7
+            results.append(line)
+    return results
 
 def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample,
                         population_size=1000, cutoff_q=(0.05, 0.95),
                         spacy_model="en_core_web_sm"):
-  population_size = max(population_size, start_sample_idx + num_sample)
-  population_size = 10
-  id = f"{corpus_name}-{spacy_model}"
-  if not os.path.isdir(CACHE_DIR):
-    os.makedirs(CACHE_DIR ,exist_ok=True)
-  file_dir = os.path.join(CACHE_DIR, id+".pkl")
+    population_size = max(population_size, start_sample_idx + num_sample)
+    id = f"{corpus_name}-{spacy_model}"
+    if not os.path.isdir(CACHE_DIR):
+      os.makedirs(CACHE_DIR ,exist_ok=True)
+    file_dir = os.path.join(CACHE_DIR, id+".pkl")
 
-  if os.path.isfile(file_dir):
-    logger.info(f"Using cache {file_dir}")
-    with open(file_dir, "rb") as f:
-      docs = pickle.load(f)
-  else:
-    logger.info(f"Processing corpus with {spacy_model}...")
-    nlp = spacy.load(spacy_model)
-    corpus = corpus[:population_size]
-    docs = []
-    num_workers = 4
-    if "trf" in spacy_model:
-      for c in corpus:
-        docs.append(nlp(c))
+    if os.path.isfile(file_dir):
+      logger.info(f"Using cache {file_dir}")
+      with open(file_dir, "rb") as f:
+        docs = pickle.load(f)
+
     else:
-      for doc in nlp.pipe(corpus, n_process=num_workers):
-        docs.append(doc)
+      logger.info(f"Processing corpus with {spacy_model}...")
+      nlp = spacy.load(spacy_model)
+      corpus = corpus[:population_size]
+      docs = []
+      num_workers = 4
+      if "trf" in spacy_model:
+        for c in corpus:
+          docs.append(nlp(c))
+      else:
+        for doc in nlp.pipe(corpus, n_process=num_workers):
+          docs.append(doc)
 
-    logger.info(f"Caching preprocessed sentences")
-    with open(file_dir, "wb") as f:
-      pickle.dump(docs, f)
+      logger.info(f"Caching preprocessed sentences")
+      with open(file_dir, "wb") as f:
+        pickle.dump(docs, f)
+      breakpoint()
 
-  lengths = []
-  sentence_tokenized = []
+    lengths = []
+    sentence_tokenized = []
 
-  for doc in docs:
-    lengths.extend([len(sent) for sent in doc.sents])
-    sentence_tokenized.append([sent for sent in doc.sents])
+    for doc in docs:
+      lengths.extend([len(sent) for sent in doc.sents])
+      sentence_tokenized.append([sent for sent in doc.sents])
 
-  l_threshold = np.quantile(lengths, cutoff_q[0])
-  # manually set upper threshold to 200 just to be safe when using Pretrained Tokenizers with maximum length=512.
-  u_threshold = min(np.quantile(lengths, cutoff_q[1]), 200)
+    l_threshold = np.quantile(lengths, cutoff_q[0])
+    # manually set upper threshold to 200 just to be safe when using Pretrained Tokenizers with maximum length=512.
+    u_threshold = min(np.quantile(lengths, cutoff_q[1]), 200)
 
-  filtered = []
-  num_skipped = 0
-  num_processed = 0
+    filtered = []
+    num_skipped = 0
+    num_processed = 0
 
-  for sample in sentence_tokenized[start_sample_idx: start_sample_idx+num_sample]:
-    sentences = [sen for sen in sample if len(sen) < u_threshold and len(sen) > l_threshold]
-    num_skipped += len(sample) - len(sentences)
-    num_processed += len(sentences)
-    filtered.append(sentences)
+    for sample in sentence_tokenized[start_sample_idx: start_sample_idx+num_sample]:
+      sentences = [sen for sen in sample if len(sen) < u_threshold and len(sen) > l_threshold]
+      num_skipped += len(sample) - len(sentences)
+      num_processed += len(sentences)
+      filtered.append(sentences)
 
-  logger.info(f"{num_processed} sentences processed, {num_skipped} sentences skipped")
-  return filtered
+    logger.info(f"{num_processed} sentences processed, {num_skipped} sentences skipped")
+    return filtered
 
 

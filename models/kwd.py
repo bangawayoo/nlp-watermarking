@@ -34,8 +34,7 @@ class KeywordExtractor:
                            "dedupFunc": 'seqm',
                            "windowsSize": 1}
 
-        self.args = {'ratio': 0.15,
-            }
+        self.args = {}
         for k, v in args.items():
             self.args[k] = v
 
@@ -48,7 +47,6 @@ class KeywordExtractor:
         """
         all_keywords = []
         entity_keywords = []
-        # tfidf_keywords = self._extract_tfidf(sentences)
         for sen_idx, sen in enumerate(sentences):
             kwd_per_sentence = []
             punct_removed = [token.text for token in sen if not token.is_punct]

@@ -45,6 +45,7 @@ def GenericArgs():
     parser.add_argument("--num_sample", type=int, default=100)
     parser.add_argument("--spacy_model", type=str, default="en_core_web_sm")
     parser.add_argument("-debug_mode", type=str2bool, default=False)
+    parser.add_argument("-metric_only", type=str2bool, default=False)
 
 
     return parser
@@ -53,10 +54,12 @@ def GenericArgs():
 def CorruptionArgs():
     parser = argparse.ArgumentParser(description="Generic argument parser")
     parser.add_argument("--target_method", type=str, default="")
+    parser.add_argument("-augment", type=str2bool, default=False)
     parser.add_argument("--exp_name", type=str, default="")
     parser.add_argument("--attack_pct", type=float, default=0.05)
     parser.add_argument("--attack_type", type=str, default="insertion")
     parser.add_argument("--path2embed", type=str, default="imdb")
+    parser.add_argument("--path2result", type=str, default="")
     parser.add_argument("--num_sentence", type=int, default=0)
 
     return parser

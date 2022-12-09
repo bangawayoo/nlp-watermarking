@@ -12,10 +12,10 @@ def getLogger(name, dir_=None, debug_mode=False):
         FIRST_CALL = False
         now = datetime.now()
         DT_STRING = now.strftime("%m%d_%H%M%S")
-        PATH_PREFIX = f"./results/{dir_}" if dir_ else "./results/"
+        PATH_PREFIX = f"./{dir_}" if dir_ else "./results/"
 
     if dir_:
-        log_path = f"./results/{dir_}/{name}-{DT_STRING}.log"
+        log_path = f"./{dir_}/{name}-{DT_STRING}.log"
     else:
         log_path = f"{PATH_PREFIX}/{name}-{DT_STRING}.log"
     log_dir = os.path.dirname(log_path)

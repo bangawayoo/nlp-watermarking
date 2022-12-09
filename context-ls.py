@@ -4,12 +4,13 @@ import random
 
 from datasets import load_dataset
 from tqdm import tqdm
-from sentence_transformers import SentenceTransformer, util
+import torch
 
 from config import GenericArgs
-from utils.misc import compute_ber, get_result_txt, synchronicity_test, substitutability_test, tokenizer, riskset, stop
+from utils.misc import compute_ber, riskset, stop
+from utils.contextls_utils import synchronicity_test, substitutability_test, tokenizer, riskset, stop
 from utils.logging import getLogger
-from utils.dataset_utils import preprocess_imdb, preprocess2sentence
+from utils.dataset_utils import preprocess_imdb, preprocess2sentence, get_result_txt
 from utils.metric import Metric
 
 random.seed(1230)
@@ -94,26 +95,39 @@ if __name__ == "__main__":
         mode = "EXTRACT"
     else:
         raise AssertionError("Mode should be specified")
-    logger = getLogger(f"{mode}", dir_="context-ls", debug_mode=DEBUG_MODE)
+
+    dirname = f"./results/context-ls/{args.dtype}/{args.exp_name}"
+    if not os.path.exists(dirname):
+        os.makedirs(dirname, exist_ok=True)
+
+    logger = getLogger(f"{mode}",
+                       dir_=dirname,
+                       debug_mode=DEBUG_MODE)
     sr_score = []
-    metric = Metric(**vars(args))
+    device = torch.device("cuda")
+    metric = Metric(device, **vars(args))
 
     f = 1
     dtype = args.dtype
     start_sample_idx = 0
     num_sample = args.num_sample
     corpus = load_dataset("imdb")['test']['text']
-    dirname = f"./results/context-ls/{dtype}"
     if not os.path.exists(dirname):
         os.makedirs(dirname, exist_ok=True)
     result_dir = os.path.join(dirname, "watermarked.txt")
 
-    cover_texts = [t.replace("\n", " ") for t in corpus]
-    cover_texts = preprocess_imdb(cover_texts)
-    cover_texts = preprocess2sentence(cover_texts, dtype, start_sample_idx, num_sample)
-
+    cover_texts = preprocess_imdb(corpus)
+    cover_texts = preprocess2sentence(cover_texts, dtype+"-test", start_sample_idx, num_sample,
+                                      spacy_model=args.spacy_model)
     bit_count = 0
     word_count = 0
+
+    if args.metric_only:
+        ss_score, ss_dist = metric.compute_ss(result_dir, cover_texts)
+        nli_score = metric.compute_nli(result_dir, cover_texts)
+        logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
+        logger.info(f"nli score: {sum(nli_score) / len(nli_score):.3f}")
+        exit()
 
     if args.embed:
         # assert not os.path.isfile(result_dir), f"{result_dir} already exists!"
@@ -141,11 +155,14 @@ if __name__ == "__main__":
 
         wr.close()
 
-        ss_score = metric.compute_ss(result_dir, cover_texts)
+        ss_score, ss_dist = metric.compute_ss(result_dir, cover_texts)
+        nli_score = metric.compute_nli(result_dir, cover_texts)
         logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
+        logger.info(f"nli score: {sum(nli_score) / len(nli_score):.3f}")
 
         with open(os.path.join(dirname, "embed-metrics.txt"), "a") as wr:
-            wr.write(f"num.sample={num_sample}\t bpw={bit_count / word_count}\t ss={sum(ss_score) / len(ss_score):}\n")
+            wr.write(f"num.sample={num_sample}\t bpw={bit_count / word_count}\t ss={sum(ss_score) / len(ss_score)}\t"
+                     f"nli={sum(nli_score) / len(nli_score)}\n")
 
 
     ##
@@ -174,9 +191,12 @@ if __name__ == "__main__":
                 sample_level_bit = {'gt':[], 'extracted':[]}
                 prev_c_idx = c_idx
 
-            original_sentences = cover_texts[c_idx]
-            sen = original_sentences[sen_idx]
-            corrupted_sen = corrupted_watermarked[idx].strip() if corrupted_flag else wm_sen
+            try:
+                original_sentences = cover_texts[c_idx]
+                sen = original_sentences[sen_idx]
+                corrupted_sen = corrupted_watermarked[idx].strip() if corrupted_flag else wm_sen
+            except:
+                breakpoint()
 
             if corrupted_flag and corrupted_sen == "skipped":
                 continue

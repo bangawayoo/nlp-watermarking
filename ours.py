@@ -11,11 +11,12 @@ import sys
 import torch
 from sentence_transformers import SentenceTransformer, util
 
+from config import InfillArgs, GenericArgs, stop
 from models.infill import InfillModel
-from utils.dataset_utils import preprocess2sentence, preprocess_imdb
+from utils.dataset_utils import preprocess2sentence, preprocess_imdb, get_result_txt
 from utils.logging import getLogger
 from utils.metric import Metric
-from config import InfillArgs, GenericArgs, stop
+from utils.misc import compute_ber
 
 random.seed(1230)
 
@@ -23,62 +24,66 @@ infill_parser = InfillArgs()
 generic_parser = GenericArgs()
 infill_args, _ = infill_parser.parse_known_args()
 generic_args, _ = generic_parser.parse_known_args()
-model = InfillModel(infill_args)
 DEBUG_MODE = generic_args.debug_mode
-
 dtype = generic_args.dtype
+
+dirname = f"./results/ours/{dtype}/{generic_args.exp_name}"
 start_sample_idx = 0
 num_sample = generic_args.num_sample
-# corpus = load_dataset(dtype)['test']['text']
-# cover_texts = [t.replace("\n", " ") for t in corpus]
-# cover_texts = preprocess_imdb(cover_texts)
-# cover_texts = preprocess2sentence(cover_texts, dtype + "-test", start_sample_idx, num_sample,
-#                                   spacy_model=infill_args.spacy_model)
+
+spacy_tokenizer = spacy.load(generic_args.spacy_model)
+if "trf" in generic_args.spacy_model:
+    spacy.require_gpu()
+model = InfillModel(infill_args, dirname=dirname)
 
 _, cover_texts = model.return_dataset()
 cover_texts = cover_texts[:num_sample]
 
-
-##
-spacy_tokenizer = spacy.load(generic_args.spacy_model)
 bit_count = 0
 word_count = 0
-
 upper_bound = 0
 candidate_kwd_cnt = 0
 kwd_match_cnt = 0
 mask_match_cnt = 0
 sample_cnt = 0
-
 one_cnt = 0 
 zero_cnt = 0
-metric = Metric(**vars(generic_args))
 
-dirname = f"results/ours/{dtype}/{generic_args.exp_name}"
+device = torch.device("cuda")
+metric = Metric(device, **vars(generic_args))
+
 if not os.path.exists(dirname):
     os.makedirs(dirname, exist_ok=True)
 
 if generic_args.embed:
     logger = getLogger("EMBED",
-                       dir_=f"ours/{dtype}/{generic_args.exp_name}",
+                       dir_=dirname,
                        debug_mode=DEBUG_MODE)
+
 
 
     result_dir = os.path.join(dirname, "watermarked.txt")
     if not os.path.exists(result_dir):
         os.makedirs(os.path.dirname(result_dir), exist_ok=True)
+
+    if generic_args.metric_only:
+        ss_score, ss_dist = metric.compute_ss(result_dir, cover_texts)
+        nli_score = metric.compute_nli(result_dir, cover_texts)
+        logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
+        logger.info(f"nli score: {sum(nli_score) / len(nli_score):.3f}")
+        exit()
+
     wr = open(result_dir, "w")
     for c_idx, sentences in enumerate(cover_texts):
         for s_idx, sen in enumerate(sentences):
             sen = spacy_tokenizer(sen.text)
             all_keywords, entity_keywords = model.keyword_module.extract_keyword([sen])
-
             # sen_text = sen.text
             logger.debug(f"{c_idx} {s_idx}")
             keyword = all_keywords[0]
             ent_keyword = entity_keywords[0]
     
-            agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word)  = model.run_iter(sen, keyword, ent_keyword, train_flag=False, embed_flag=True)
+            agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word) = model.run_iter(sen, keyword, ent_keyword, train_flag=False, embed_flag=True)
     
             # check if keyword & mask_indices matches
             valid_watermarks= []
@@ -92,18 +97,12 @@ if generic_args.embed:
                         wm_text[m_idx] = re.sub(r"\S+", model.tokenizer.decode(c_id), wm_text[m_idx])
 
                     wm_tokenized = spacy_tokenizer("".join(wm_text).strip())
-                    # filter out if the parsing tree has been modified
-                    # how to determine modified?
-                    for m_idx, m_word in zip(mask_idx, mask_word):
-                        new_pos = [t for t in wm_tokenized][m_idx].pos_
-                        pos = m_word.pos_
-                        # print(wm_text)
-                        # print([t for t in wm_tokenized][m_idx])
-                        # print(new_pos)
-                        # print(pos)
-                        # breakpoint()
-                        if new_pos != pos:
-                            continue
+                    # only use the same pos
+                    # for m_idx, m_word in zip(mask_idx, mask_word):
+                    #     new_pos = [t for t in wm_tokenized][m_idx].pos_
+                    #     pos = m_word.pos_
+                    #     if new_pos != pos:
+                    #         continue
 
                     # extract keyword of watermark
                     wm_keywords, wm_ent_keywords = model.keyword_module.extract_keyword([wm_tokenized])
@@ -150,7 +149,8 @@ if generic_args.embed:
                 for m_idx in mask_idx:
                     keys.append(wm_tokenized[m_idx].text)
                 keys_str = ", ".join(keys)
-
+                # if c_idx == 2 and s_idx == 4:
+                #     breakpoint()
                 message_str = ' '.join(message_str) if len(message_str) else ""
                 wr.write(f"{c_idx}\t{s_idx}\t \t \t"
                          f"{''.join(wm_text)}\t{keys_str}\t{message_str}\n")
@@ -168,22 +168,24 @@ if generic_args.embed:
     logger.info(f"mask match rate: {mask_match_cnt / sample_cnt:.3f}")
     logger.info(f"kwd match rate: {kwd_match_cnt / sample_cnt :.3f}")
     logger.info(f"zero/one ratio: {zero_cnt / one_cnt :.3f}")
-    ss_score = metric.compute_ss(result_dir, cover_texts)
-    logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
 
+    ss_score, ss_dist = metric.compute_ss(result_dir, cover_texts)
+    nli_score = metric.compute_nli(result_dir, cover_texts)
+    logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
+    logger.info(f"nli score: {sum(nli_score) / len(nli_score):.3f}")
 
     result_dir = os.path.join(dirname, "embed-metrics.txt")
     with open(result_dir, "a") as wr:
-        wr.write(f"num.sample={num_sample}\t bpw={bit_count / word_count}\t ss={sum(ss_score)/len(ss_score):}\n")
+        wr.write(f"num.sample={num_sample}\t bpw={bit_count / word_count}\t ss={sum(ss_score)/len(ss_score)}\t"
+                 f"nli={sum(nli_score) / len(nli_score)}\n")
       
       
 ##
-from utils.misc import get_result_txt, compute_ber
 
 if generic_args.extract:
     corrupted_flag = generic_args.extract_corrupted
     logger = getLogger(f"EXTRACT-CORRUPTED" if corrupted_flag else "EXTRACT",
-                       dir_=f"ours/{dtype}/{generic_args.exp_name}", debug_mode=DEBUG_MODE)
+                       dir_=dirname, debug_mode=DEBUG_MODE)
     start_sample_idx = 0
 
     result_dir = os.path.join(dirname, "watermarked.txt")
@@ -245,11 +247,10 @@ if generic_args.extract:
         kwd_match_flag = set([x.text for x in keyword]) == set([x.text for x in keyword_])
         if kwd_match_flag:
             kwd_match_cnt += 1
-        if not kwd_match_flag:
-            logger.info(f"{sen}")
-            logger.info(f"Extracted Kwd: {keyword}")
-            logger.info(f"Original Kwd: {keyword_}")
-
+        # if not kwd_match_flag:
+        #     logger.info(f"{sen}")
+        #     logger.info(f"Extracted Kwd: {keyword}")
+        #     logger.info(f"Original Kwd: {keyword_}")
 
         midx_match_flag = set(mask_idx) == set(mask_idx_)
         if midx_match_flag:
