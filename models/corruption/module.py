@@ -164,7 +164,7 @@ class Attacker:
 
 
 """
-Sentence Encoder Class
+Sentence Encoder Class from TextAttack modified to set number of corruptions words = round(ratio * length) 
 ------------------------
 """
 

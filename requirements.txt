@@ -4,6 +4,7 @@ tqdm
 datasets
 sentence-transformers
 yake
+accelerate
 
 #sentencepiece
 #textattack

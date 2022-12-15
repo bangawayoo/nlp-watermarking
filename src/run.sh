@@ -1,14 +1,15 @@
-export CUDA_VISIBLE_DEVICES=0
-NAME="dep_ordering-sm"
+export CUDA_VISIBLE_DEVICES=1
+NAME="robust-infill-dep"
 SPACYM="en_core_web_sm"
+CKPT="low_data-ckpt/5"
 
-#python ./ours.py -do_watermark T -embed T --exp_name $NAME --num_sample 30 --spacy_model $SPACYM
+#python ./ours.py -do_watermark T -embed T --exp_name $NAME --num_sample 30 --spacy_model $SPACYM --model_ckpt $CKPT
 #python ./ours.py -do_watermark T -extract T -extract_corrupted F\
 #                 --exp_name $NAME --spacy_model $SPACYM
 
 ##
 ATTACKM="insertion deletion substitution"
-PCT_RANGE="0.05 0.1"
+PCT_RANGE="0.05"
 for attm in $ATTACKM
 do
 for apct in $PCT_RANGE
@@ -21,7 +22,6 @@ for apct in $PCT_RANGE
 
     python ./ours.py -do_watermark T -extract T -extract_corrupted T\
                      --corrupted_file_dir "./results/ours/imdb/${NAME}/watermarked-${attm}=${apct}.txt"\
-                     --exp_name $NAME --spacy_model $SPACYM
+                     --exp_name $NAME --spacy_model $SPACYM --model_ckpt $CKPT
   done
 done
-
