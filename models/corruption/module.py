@@ -12,7 +12,7 @@ from textattack.transformations import WordInsertionMaskedLM, WordSwapMaskedLM, 
 
 import tensorflow as tf
 import transformers
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from utils.dataset_utils import get_result_txt
 from utils.logging import getLogger
@@ -63,7 +63,7 @@ class Attacker:
                                                     constraints=constraints,
                                                     pct_words_to_swap=attack_percentage, fast_augment=True))
 
-        elif attack_type == "substitution" or augment_data_flag:
+        if attack_type == "substitution" or augment_data_flag:
             transformation = WordSwapMaskedLM(
                 method="bae", #uses bert-base-uncased by default
                 max_candidates=10,
@@ -74,10 +74,10 @@ class Attacker:
                                                     transformations_per_example=transformations_per_example,
                                                     constraints=constraints,
                                                     pct_words_to_swap=attack_percentage, fast_augment=True))
-        elif attack_type == "char-based" or augment_data_flag:
+        if attack_type == "char-based" or augment_data_flag:
             pass
 
-        elif attack_type == "deletion" or augment_data_flag:
+        if attack_type == "deletion" or augment_data_flag:
             transformation = WordDeletion()
             self.augmenter_choices.append(Augmenter(transformation=transformation,
                                                     transformations_per_example=transformations_per_example,
@@ -112,7 +112,7 @@ class Attacker:
                 break
 
         self.wr.close()
-        self.logger.info(f"Skipped {skipped_cnt} and created {attacked_cnt} sentences")
+        self.logger.info(f"Skipped {skipped_cnt} and created {attacked_cnt} corrupted sentences")
 
     def attack_sample(self):
         sentence_agg = []
@@ -143,6 +143,7 @@ class Attacker:
 
     def augment_data(self, cover_texts):
         attacked_cnt = 0
+        progress_bar = tqdm(range(len(cover_texts)))
         for c_idx, sentences in enumerate(cover_texts):
             self.logger.info(f"{c_idx}")
             for sen in sentences:
@@ -153,10 +154,11 @@ class Attacker:
                     data2write.insert(0, sen.text)
                     self.wr.write("[sep] ".join(data2write) + "\n")
                     attacked_cnt += 1
+                progress_bar.update(1)
+            if self.num_sentence and attacked_cnt >= self.num_sentence:
+                self.logger.info(f"Done augmenting {attacked_cnt} sentences")
+                break
 
-                if attacked_cnt >= self.num_sentence:
-                    self.logger.info(f"Done augmenting {attacked_cnt} sentences")
-                    break
         self.wr.close()
 
 

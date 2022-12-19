@@ -44,14 +44,16 @@ class InfillModel:
                                  }
 
         self.tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
-        ckpt = "bert-base-cased" if args.model_ckpt is None else args.model_ckpt
-        self.lm_head = AutoModelForMaskedLM.from_pretrained(ckpt).to(self.device)
+        self.lm_head = AutoModelForMaskedLM.from_pretrained("bert-base-cased").to(self.device)
+        if args.model_ckpt:
+            state_dict = torch.load(args.model_ckpt, map_location=self.device)["model"]
+            self.lm_head.load_state_dict(state_dict)
         self.nli_reward = None if args.do_watermark else NLIReward(self.device)
         self.keyword_module = KeywordExtractor(ratio=0.06)
         self.mask_selector = MaskSelector()
         self.nlp = spacy.load(args.spacy_model)
 
-        self.metric = {'entail_score':[], 'num_subs':[], 'train_entail_score':[]}
+        self.metric = {'entail_score': [], 'num_subs': [], 'train_entail_score':[]}
         self.best_metric = {'entail_score': 0}
 
 
@@ -59,7 +61,6 @@ class InfillModel:
         """
         text: Spacy.Span object (sentence of Spacy.Doc)
         mask_idx_token: List[index of masks in Spacy tokens] (c.f. mask_idx_pt: mask index in Pytorch Tensors)
-
         """
         tokenized_text = [token.text_with_ws for token in text]
         tokenized_text_masked = tokenized_text.copy()
@@ -72,6 +73,7 @@ class InfillModel:
         inputs = self.tokenizer(["".join(tokenized_text_masked).strip()], return_tensors="pt",
                                 add_special_tokens=True, padding="longest")
         inputs = {k:v.to(self.device) for k,v in inputs.items()}
+        self.logger.debug("Masked Sentence:")
         self.logger.debug("".join(tokenized_text_masked).strip())
 
         if train_flag:
@@ -109,7 +111,7 @@ class InfillModel:
 
             agg_cwi.append(candidate_word_ids)
             agg_probs.append(sorted_probs[idx, :len(candidate_word_ids)])
-            self.logger.debug(self.tokenizer.decode(candidate_word_ids))
+            self.logger.debug(self.tokenizer.decode(candidate_word_ids) + "\n")
         avg_num_cand /= len(mask_idx_token)
 
         return agg_cwi, agg_probs, mask_idx_pt, inputs
@@ -191,10 +193,6 @@ class InfillModel:
                     if nli_loss:
                         entail_score, candidate_texts = self.compute_nli(candidate_texts, candidate_text_jp, sen.text, train_flag=True)
                         self.metric['train_entail_score'].extend(entail_score.tolist())
-
-
-                    if robustness_loss:
-                        pass
 
                     if (iteration+1) % self.train_kwargs['log_iter_interval'] == 0:
                         nli_score = torch.mean(torch.tensor(model.metric['train_entail_score'])).item()

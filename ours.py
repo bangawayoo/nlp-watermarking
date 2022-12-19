@@ -83,10 +83,11 @@ if generic_args.embed:
             keyword = all_keywords[0]
             ent_keyword = entity_keywords[0]
     
-            agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word) = model.run_iter(sen, keyword, ent_keyword, train_flag=False, embed_flag=True)
+            agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word) = model.run_iter(sen, keyword, ent_keyword,
+                                                                                                  train_flag=False, embed_flag=True)
     
             # check if keyword & mask_indices matches
-            valid_watermarks= []
+            valid_watermarks = []
             candidate_kwd_cnt = 0
             tokenized_text = [token.text_with_ws for token in sen]
 
@@ -113,19 +114,13 @@ if generic_args.embed:
                     kwd_match_flag = set([x.text for x in wm_kwd]) == set([x.text for x in keyword])
                     if kwd_match_flag:
                         kwd_match_cnt += 1
+
                     # checking whether the watermark can be embedded without the assumption of corruption
-                    # for extraction, infill should be done
                     mask_match_flag = set(wm_mask_idx) == set(mask_idx)
                     if mask_match_flag:
                         valid_watermarks.append(wm_tokenized.text)
                         mask_match_cnt += 1
 
-                    # if kwd_match_flag and not mask_match_flag:
-                    #     logger.info(f"kwd: {wm_kwd}")
-                    #     logger.info(f"{sen.text}")
-                    #     logger.info(f"mask: {mask_word}")
-                    #     logger.info(f"{''.join(wm_text)}")
-                    #     logger.info(f"wm mask: {wm_mask}\n")
 
                     sample_cnt += 1
                     candidate_kwd_cnt += 1
@@ -202,7 +197,7 @@ if generic_args.extract:
 
     prev_c_idx = 0
     agg_msg = []
-    bit_error_agg = {"sentence_err_cnt":0, "sentence_cnt":0}
+    bit_error_agg = {"sentence_err_cnt": 0, "sentence_cnt": 0}
     infill_match_cnt = 0
     infill_match_cnt2 = 0
 
@@ -235,22 +230,21 @@ if generic_args.extract:
             continue
 
         num_corrupted_sen += 1
+        # extracting states for corrupted
         keyword = all_keywords[0]
         ent_keyword = entity_keywords[0]
-        agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word) = model.run_iter(sen, keyword, ent_keyword, train_flag=False, embed_flag=True)
+        agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word) = model.run_iter(sen, keyword, ent_keyword,
+                                                                                              train_flag=False, embed_flag=True)
         wm_keys = model.tokenizer(" ".join([t.text for t in mask_word]), add_special_tokens=False)['input_ids']
 
+        # extracting states for uncorrupted
         keyword_ = all_keywords_[0]
         ent_keyword_ = entity_keywords_[0]
         agg_cwi_, agg_probs_, tokenized_pt_, (mask_idx_pt_, mask_idx_, mask_word_) = model.run_iter(sen_, keyword_, ent_keyword_,
-                                                         train_flag=False, embed_flag=True)
+                                                                                                    train_flag=False, embed_flag=True)
         kwd_match_flag = set([x.text for x in keyword]) == set([x.text for x in keyword_])
         if kwd_match_flag:
             kwd_match_cnt += 1
-        # if not kwd_match_flag:
-        #     logger.info(f"{sen}")
-        #     logger.info(f"Extracted Kwd: {keyword}")
-        #     logger.info(f"Original Kwd: {keyword_}")
 
         midx_match_flag = set(mask_idx) == set(mask_idx_)
         if midx_match_flag:
@@ -291,8 +285,6 @@ if generic_args.extract:
                 wm_ent_kwd = wm_ent_keywords[0]
                 wm_mask_idx, wm_mask = model.mask_selector.return_mask(wm_tokenized, wm_kwd, wm_ent_kwd)
 
-
-                kwd_match_flag = set([x.text for x in wm_kwd]) == set([x.text for x in keyword])
                 # checking whether the watermark can be embedded
                 mask_match_flag = len(wm_mask) > 0 and set(wm_mask_idx) == set(mask_idx)
                 if mask_match_flag:

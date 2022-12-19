@@ -58,6 +58,7 @@ def CorruptionArgs():
     parser.add_argument("--exp_name", type=str, default="")
     parser.add_argument("--attack_pct", type=float, default=0.05)
     parser.add_argument("--attack_type", type=str, default="insertion")
+    parser.add_argument("--ss_thres", type=float, default=0.98)
     parser.add_argument("--path2embed", type=str, default="imdb")
     parser.add_argument("--path2result", type=str, default="")
     parser.add_argument("--num_sentence", type=int, default=0)

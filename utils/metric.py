@@ -47,8 +47,7 @@ class Metric:
                 text = cover_texts[int(c_idx)][int(sen_idx)].text
                 batch.append(text)
                 wm_batch.append(wm_text.strip())
-
-            if len(batch) == 64 or idx == len(watermarked)-1:
+            if (len(batch) == 64 or idx == len(watermarked)-1) and len(wm_batch) != 0:
                 wm_emb = self.sts_model.encode(wm_batch, convert_to_tensor=True)
                 emb = self.sts_model.encode(batch, convert_to_tensor=True)
                 cosine_scores = util.cos_sim(wm_emb, emb)
@@ -80,7 +79,7 @@ class Metric:
                 batch.append(text)
                 wm_batch.append(wm_text.strip())
 
-            if len(batch) == 64 or idx == len(watermarked)-1:
+            if (len(batch) == 64 or idx == len(watermarked)-1) and len(wm_batch) != 0:
                 nli_encodings = self._concatenate_for_nli(batch, wm_batch)
                 nli_encodings = {k: v.to(self.device) for k, v in nli_encodings.items()}
                 with torch.no_grad():

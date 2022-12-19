@@ -16,7 +16,7 @@ path2embed = args.path2embed
 if args.augment:
     assert len(args.path2result) > 0, "Save path is empty"
     path2result = args.path2result
-    constraint_kwargs = {'use': 0.95, 'num_sentence': args.num_sentence}
+    constraint_kwargs = {'use': args.ss_thres, 'num_sentence': args.num_sentence}
     attacker = Attacker(attack_type, attack_percentage, path2embed, path2result, constraint_kwargs, augment_data_flag=True)
 
     infill_parser = InfillArgs()
@@ -36,6 +36,6 @@ else:
         path2result = f"./{path2embed.split('.')[0]}-{attack_type}={attack_percentage}.txt"
 
 
-    constraint_kwargs = {'use': 0.95, 'num_sentence': args.num_sentence}
+    constraint_kwargs = {'use': args.ss_thres, 'num_sentence': args.num_sentence}
     attacker = Attacker(attack_type, attack_percentage, path2embed, path2result, constraint_kwargs)
     attacker.attack_sentence()
