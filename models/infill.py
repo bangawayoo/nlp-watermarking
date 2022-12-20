@@ -44,7 +44,7 @@ class InfillModel:
                                  }
 
         self.tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
-        self.lm_head = AutoModelForMaskedLM.from_pretrained("bert-base-cased").to(self.device)
+        self.lm_head = AutoModelForMaskedLM.from_pretrained("bert-base-cased")
 
         if args.model_ckpt:
             state_dict = torch.load(args.model_ckpt, map_location=self.device)["model"]

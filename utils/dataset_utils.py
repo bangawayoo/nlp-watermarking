@@ -216,7 +216,6 @@ def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample,
       logger.info(f"Caching preprocessed sentences")
       with open(file_dir, "wb") as f:
         pickle.dump(docs, f)
-      breakpoint()
 
     lengths = []
     sentence_tokenized = []
