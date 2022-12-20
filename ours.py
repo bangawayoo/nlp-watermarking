@@ -179,13 +179,17 @@ if generic_args.embed:
 
 if generic_args.extract:
     corrupted_flag = generic_args.extract_corrupted
-    logger = getLogger(f"EXTRACT-CORRUPTED" if corrupted_flag else "EXTRACT",
+    logger_name = "EXTRACT"
+    if corrupted_flag:
+        corrupted_dir = generic_args.corrupted_file_dir
+        corruption_type = corrupted_dir.split("-")[1].replace(".txt", "")
+        logger_name = f"EXTRACT-{corruption_type}"
+    logger = getLogger(logger_name,
                        dir_=dirname, debug_mode=DEBUG_MODE)
     start_sample_idx = 0
 
     result_dir = os.path.join(dirname, "watermarked.txt")
     if corrupted_flag:
-        corrupted_dir = generic_args.corrupted_file_dir
         logger.info(f"Extracting corrupted watermarks on {corrupted_dir}...")
         corrupted_watermarked = []
         with open(corrupted_dir, "r") as reader:

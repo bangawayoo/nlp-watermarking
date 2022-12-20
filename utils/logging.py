@@ -22,7 +22,7 @@ def getLogger(name, dir_=None, debug_mode=False):
     log_dir = os.path.dirname(log_path)
 
     if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+        os.makedirs(log_dir, exist_ok=True)
 
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)

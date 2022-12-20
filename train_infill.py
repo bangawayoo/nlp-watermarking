@@ -1,6 +1,6 @@
 import copy
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
+os.environ['CUDA_VISBLE_DEVICES'] = "0"
 import collections
 import random
 
@@ -125,7 +125,6 @@ def collator_for_masking(feature):
         corr_feat['labels'] = corr_labels
         corr_feature.append(corr_feat)
 
-
     return datacollator(feature), datacollator(corr_feature)
 
 
@@ -144,8 +143,7 @@ if DEBUG_MODE:
     eval_dataset = eval_dataset['test']
 
 
-
-train_bs = 64
+train_bs = 64 if not DEBUG_MODE else 8
 train_dl = DataLoader(
     pt_dataset['train'],
     shuffle=False,
@@ -202,7 +200,6 @@ lr_scheduler = get_scheduler(
 )
 
 
-
 import torch
 import torch.nn.functional as F
 import math
@@ -218,74 +215,118 @@ use_logit_loss = False
 mse_criterion = torch.nn.MSELoss()
 logit_loss_w = 1.0
 
-
-EVAL_INIT = False
-if EVAL_INIT:
-    # Evaluation pre-training
-    model.eval()
-    losses = {"mlm": [], "r_mlm": []}
-    for step, (batch, corr_batch) in enumerate(eval_dl):
-        with torch.no_grad():
-            outputs = model(**batch)
-            masked_index = (batch['input_ids'] == tokenizer.mask_token_id).nonzero(as_tuple=True)
-            target_dist = F.softmax(outputs.logits[masked_index], dim=-1)
-
-            corr_outputs = model(**corr_batch)
-            masked_index = (corr_batch['input_ids'] == tokenizer.mask_token_id).nonzero(as_tuple=True)
-            pred_dist = F.softmax(corr_outputs.logits[masked_index], dim=-1)
-
-            if optimize_topk:
-                topk_target_dist, topk_target_idx = torch.topk(target_dist, topk, dim=-1)
-                topk_pred_dist = []
-                for k_idx in range(topk):
-                    single_pred = pred_dist.gather(1, topk_target_idx[:, [k_idx]])
-                    topk_pred_dist.append(single_pred)
-
-                topk_pred_dist = torch.cat(topk_pred_dist, dim=1)
-                topk_pred_dist = topk_pred_dist / topk_pred_dist.sum(dim=-1, keepdim=True)
-                topk_target_dist = topk_target_dist / topk_target_dist.sum(dim=-1, keepdim=True)
-                kl_loss = kl_criterion(topk_pred_dist.log(), topk_target_dist)
-            else:
-                kl_loss = kl_criterion(pred_dist.log(), target_dist)
-
-
-        bs = batch['labels'].shape[0]
-        loss = outputs.loss
-        losses['mlm'].append(accelerator.gather(loss.repeat(bs)))
-        losses['r_mlm'].append(accelerator.gather(kl_loss.repeat(bs)))
-
-    logger.debug("Batch of topk pre-training:")
-    topk_token_idx = torch.topk(pred_dist, 5, dim=-1)[1]
-    for tti in topk_token_idx:
-        logger.debug(tokenizer.decode(tti))
-
-    mlm_losses = torch.cat(losses['mlm'])
-    mlm_losses = mlm_losses[: len(pt_dataset['test'])].mean()
-
-    rmlm_losses = torch.cat(losses['r_mlm'])
-    rmlm_losses = rmlm_losses[: len(pt_dataset['test'])].mean()
-
-    logger.info(f">>> Initial Perplexity: {mlm_losses:.2f}  R_mlm_kl: {rmlm_losses:.4f}")
-
-step = 0
-
 ckpt_dir = f"./ckpt/{generic_args.exp_name}/"
 if not os.path.exists(ckpt_dir):
     os.makedirs(ckpt_dir)
 
+
+def compute_loss(target_dist, pred_dist, kl_criterion, mse_criterion=None, optimize_topk=True, use_logit_loss=False):
+    if optimize_topk:
+        _, topk_target_idx = torch.topk(target_dist, topk, dim=-1)
+        row_idx = [[idx] * topk_target_idx.shape[1] for idx in range(topk_target_idx.shape[0])]
+        row_idx = [item for sublist in row_idx for item in sublist]
+        col_idx = torch.flatten(topk_target_idx).tolist()
+
+        bool_mask = torch.empty(target_dist.shape, dtype=torch.bool, device=target_dist.device)
+        bool_mask[:] = True
+        bool_mask[row_idx, col_idx] = False
+        target_dist[bool_mask] = 0
+        target_dist = target_dist / target_dist.sum(dim=-1, keepdim=True)
+        target_dist = target_dist + 1e-6
+        # use reverse kl
+        kl_loss = kl_criterion(target_dist.log(), pred_dist)
+
+        ### optimizing only for the topk ###
+        # topk_target_dist, topk_target_idx = torch.topk(target_dist, topk, dim=-1)
+        # topk_pred_dist = []
+        # for k_idx in range(topk):
+        #     single_pred = pred_dist.gather(1, topk_target_idx[:, [k_idx]])
+        #     topk_pred_dist.append(single_pred)
+        #
+        # topk_pred_dist = torch.cat(topk_pred_dist, dim=1)
+        # topk_pred_dist = topk_pred_dist / topk_pred_dist.sum(dim=-1, keepdim=True)
+        # topk_target_dist = topk_target_dist / topk_target_dist.sum(dim=-1, keepdim=True)
+
+        # kl_loss = kl_criterion(topk_pred_dist.log(), topk_target_dist)
+    else:
+        kl_loss = kl_criterion(pred_dist.log(), target_dist)
+
+    logit_loss = torch.tensor(-1, dtype=torch.float, device=target_dist.device)
+    if use_logit_loss:
+        target_logit = outputs.logits[masked_index]
+        pred_logit = corr_outputs.logits[corr_masked_index]
+        logit_loss = mse_criterion(pred_logit, target_logit)
+
+    if kl_loss == float("inf") or kl_loss == float("-inf"):
+        logger.info("KL loss is inf!")
+        breakpoint()
+
+    return kl_loss, logit_loss
+
+def evaluate(eval_dl, epoch, step, save_ckpt=False):
+    model.eval()
+    losses = {"mlm": [], "r_mlm": []}
+    for batch, corr_batch in eval_dl:
+        with torch.no_grad():
+            outputs = fixed_model(**batch)
+            masked_index = (batch['input_ids'] == tokenizer.mask_token_id).nonzero(as_tuple=True)
+
+            corr_outputs = model(**corr_batch)
+            corr_masked_index = (corr_batch['input_ids'] == tokenizer.mask_token_id).nonzero(as_tuple=True)
+
+            target_dist = F.softmax(outputs.logits[masked_index], dim=-1)
+            pred_dist = F.softmax(corr_outputs.logits[corr_masked_index], dim=-1)
+
+            kl_loss, logit_loss = compute_loss(target_dist, pred_dist, kl_criterion,
+                                               mse_criterion=None, optimize_topk=True, use_logit_loss=False)
+
+        bs = batch['labels'].shape[0]
+        loss = corr_outputs.loss
+        losses['mlm'].append(accelerator.gather(loss.repeat(bs)))
+        losses['r_mlm'].append(accelerator.gather(kl_loss.repeat(bs)))
+
+    logger.debug(f"At Step {step}:")
+    topk_token_idx = torch.topk(pred_dist, 5, dim=-1)[1]
+    for tti in topk_token_idx:
+        logger.debug(tokenizer.decode(tti))
+
+    log_output = ""
+    for k, v in losses.items():
+        mean_loss = torch.cat(v)[: len(pt_dataset['test'])].mean()
+        log_output += f"{k}: {mean_loss:.3f}\t"
+        losses[k] = []
+
+    logger.info(f">>>Eval at Epoch {epoch}, Step {step}/{num_training_steps}\t"
+                f"{log_output}")
+
+    if save_ckpt:
+        accelerator.wait_for_everyone()
+        unwrapped = accelerator.unwrap_model(model)
+        accelerator.save(
+            {"model": unwrapped.state_dict()},
+            os.path.join(ckpt_dir, f"{step}.pth")
+        )
+
+
+EVAL_INIT = True
+if EVAL_INIT:
+    # Evaluation pre-training
+    evaluate(eval_dl, 0, 0, save_ckpt=False)
+
+step = 0
 for epoch in range(num_train_epochs):
-    # Training
-    model.train()
-    tr_losses = {"mlm": [], "r_mlm": [], "ll":[]}
+    # Train metric
+    tr_losses = {"mlm": [], "r_mlm": [], "ll": []}
 
     for b_idx, (batch, corr_batch) in enumerate(train_dl):
+        model.train()
         with torch.no_grad():
             outputs = fixed_model(**batch)
             masked_index = (batch['input_ids'] == tokenizer.mask_token_id).nonzero(as_tuple=True)
 
         corr_outputs = model(**corr_batch)
         corr_masked_index = (corr_batch['input_ids'] == tokenizer.mask_token_id).nonzero(as_tuple=True)
-        ppl_loss = outputs.loss
+        ppl_loss = corr_outputs.loss
 
         # the target distribution is detached from graph
         target_dist = F.softmax(outputs.logits[masked_index], dim=-1)
@@ -295,31 +336,13 @@ for epoch in range(num_train_epochs):
                 f"Number of masked tokens different for {b_idx} : target {target_dist.shape[0]} , pred: {pred_dist.shape[0]}")
             breakpoint()
 
-        if optimize_topk:
-            topk_target_dist, topk_target_idx = torch.topk(target_dist, topk, dim=-1)
-            topk_pred_dist = []
-            for k_idx in range(topk):
-                single_pred = pred_dist.gather(1, topk_target_idx[:, [k_idx]])
-                topk_pred_dist.append(single_pred)
+        kl_loss, logit_loss = compute_loss(target_dist, pred_dist, kl_criterion,
+                                           mse_criterion=None, optimize_topk=True, use_logit_loss=False)
 
-            topk_pred_dist = torch.cat(topk_pred_dist, dim=1)
-            topk_pred_dist = topk_pred_dist / topk_pred_dist.sum(dim=-1, keepdim=True)
-            topk_target_dist = topk_target_dist / topk_target_dist.sum(dim=-1, keepdim=True)
-            kl_loss = kl_criterion(topk_pred_dist.log(), topk_target_dist)
-        else:
-            kl_loss = kl_criterion(pred_dist.log(), target_dist)
-
-        logit_loss = 0
-        if use_logit_loss:
-            target_logit = outputs.logits[masked_index]
-            pred_logit = corr_outputs.logits[corr_masked_index]
-            logit_loss = mse_criterion(pred_logit, target_logit)
-
-
+        if kl_loss == float("inf") or kl_loss == float("-inf"):
+            logger.info("KL loss is inf!")
+            breakpoint()
         loss = kl_loss + logit_loss * logit_loss_w
-        # print(kl_loss)
-        # print(torch.tensor([p.norm() for p in model.parameters()]).mean())
-        # breakpoint()
         accelerator.backward(loss)
 
         optimizer.step()
@@ -329,76 +352,23 @@ for epoch in range(num_train_epochs):
         step += 1
 
         bs = batch['labels'].shape[0]
-        tr_losses['mlm'].append(accelerator.gather(ppl_loss.repeat(bs)))
-        tr_losses['r_mlm'].append(accelerator.gather(kl_loss.repeat(bs)))
-        tr_losses['ll'].append(accelerator.gather(logit_loss.repeat(bs)))
+
+        tr_losses['mlm'].append(accelerator.gather(ppl_loss.detach().repeat(bs)))
+        tr_losses['r_mlm'].append(accelerator.gather(kl_loss.detach().repeat(bs)))
+        tr_losses['ll'].append(accelerator.gather(logit_loss.detach().repeat(bs)))
 
         if step % log_freq == 0:
-            # log training metric
-            mlm_losses = torch.cat(tr_losses['mlm'])
-            mlm_losses = mlm_losses.mean()
-            rmlm_losses = torch.cat(tr_losses['r_mlm'])
-            rmlm_losses = rmlm_losses.mean()
-            logit_losses = torch.cat(tr_losses['ll'])
-            logit_losses = logit_losses.mean()
-            logger.info(f">>>Train log at Epoch {epoch}, Step {step}/{num_training_steps}: "
-                        f"mlm: {mlm_losses:.3f}  R_mlm_kl: {rmlm_losses:.3f} logit_loss: {logit_losses:.3f}")
-            tr_losses = {"mlm": [], "r_mlm": []}
+            log_output = ""
+            for k, v in tr_losses.items():
+                mean_loss = torch.cat(v).mean()
+                log_output += f"{k}: {mean_loss:.3f}\t"
+                tr_losses[k] = []
+            logger.info(f">>>Train log at Epoch {epoch}, Step {step}/{num_training_steps}\t"
+                        f"{log_output}")
 
-        if step % eval_freq == 0:
+        if step % eval_freq == 0 or step == num_training_steps:
             # Evaluation
-            model.eval()
-            losses = {"mlm":[], "r_mlm":[]}
-            for batch, corr_batch in eval_dl:
-                with torch.no_grad():
-                    outputs = fixed_model(**batch)
-                    masked_index = (batch['input_ids'] == tokenizer.mask_token_id).nonzero(as_tuple=True)
-
-                    corr_outputs = model(**corr_batch)
-                    corr_masked_index = (corr_batch['input_ids'] == tokenizer.mask_token_id).nonzero(as_tuple=True)
-
-                    target_dist = F.softmax(outputs.logits[masked_index], dim=-1)
-                    pred_dist = F.softmax(corr_outputs.logits[corr_masked_index], dim=-1)
-                    if optimize_topk:
-                        topk_target_dist, topk_target_idx = torch.topk(target_dist, topk, dim=-1)
-                        topk_pred_dist = []
-                        for k_idx in range(topk):
-                            single_pred = pred_dist.gather(1, topk_target_idx[:, [k_idx]])
-                            topk_pred_dist.append(single_pred)
-
-                        topk_pred_dist = torch.cat(topk_pred_dist, dim=1)
-                        topk_pred_dist = topk_pred_dist / topk_pred_dist.sum(dim=-1, keepdim=True)
-                        topk_target_dist = topk_target_dist / topk_target_dist.sum(dim=-1, keepdim=True)
-                        kl_loss = kl_criterion(topk_pred_dist.log(), topk_target_dist)
-                    else:
-                        kl_loss = kl_criterion(pred_dist.log(), target_dist)
-
-
-                bs = batch['labels'].shape[0]
-                loss = outputs.loss
-                losses['mlm'].append(accelerator.gather(loss.repeat(bs)))
-                losses['r_mlm'].append(accelerator.gather(kl_loss.repeat(bs)))
-
-            logger.debug(f"At Step {step}:")
-            topk_token_idx = torch.topk(pred_dist, 5, dim=-1)[1]
-            for tti in topk_token_idx:
-                logger.debug(tokenizer.decode(tti))
-
-            mlm_losses = torch.cat(losses['mlm'])
-            mlm_losses = mlm_losses[: len(pt_dataset['test'])].mean()
-
-            rmlm_losses = torch.cat(losses['r_mlm'])
-            rmlm_losses = rmlm_losses[: len(pt_dataset['test'])].mean()
-
-            logger.info(f">>>Eval at Epoch {epoch}, Step {step}/{num_training_steps}: "
-                        f"Perplexity: {mlm_losses:.3f}  R_mlm_kl: {rmlm_losses:.3f}")
-            accelerator.wait_for_everyone()
-            unwrapped = accelerator.unwrap_model(model)
-            accelerator.save(
-                {"model": unwrapped.state_dict()},
-                os.path.join(ckpt_dir, f"{step}.pth")
-            )
-            # unwrapped.save_pretrained(f"./ckpt/{generic_args.exp_name}/{step}")
+            evaluate(eval_dl, epoch, step, save_ckpt=True)
 
 accelerator.wait_for_everyone()
 unwrapped = accelerator.unwrap_model(model)

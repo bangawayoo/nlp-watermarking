@@ -1,9 +1,10 @@
 export CUDA_VISIBLE_DEVICES=1
-NAME="robust-infill-step=185000"
+NAME="robust-infill-reverse-kl=115000"
 SPACYM="en_core_web_sm"
-CKPT="./ckpt/longer-training/185000.pth"
+CKPT="./ckpt/reverse-kl/115000.pth"
 
-python ./ours.py -do_watermark T -embed T --exp_name $NAME --num_sample 100 --spacy_model $SPACYM --model_ckpt $CKPT
+python ./ours.py -do_watermark T -embed T --exp_name $NAME --num_sample 100 --spacy_model $SPACYM\
+      --model_ckpt $CKPT
 #python ./ours.py -do_watermark T -extract T -extract_corrupted F\
 #                 --exp_name $NAME --spacy_model $SPACYM
 

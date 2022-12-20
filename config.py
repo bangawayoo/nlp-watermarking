@@ -25,7 +25,7 @@ def InfillArgs():
     parser.add_argument("-do_watermark", type=str2bool, default=False)
     parser.add_argument("-train_infill", type=str2bool, default=False)
 
-    parser.add_argument("--model_ckpt", type=str, nargs="?", const="bert-base-cased")
+    parser.add_argument("--model_ckpt", type=str, nargs="?", const="")
     parser.add_argument("--exp_name", type=str, default="")
 
     parser.add_argument("--num_epochs", type=int, default=10)
