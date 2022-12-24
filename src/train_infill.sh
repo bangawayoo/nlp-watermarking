@@ -1,6 +1,6 @@
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=0
 DEBUG="False"
-EXP_NAME="reverse-kl-fewer_mask"
+EXP_NAME="tmp"
 DATA_TYPE="imdb"
 EPOCH=500
 

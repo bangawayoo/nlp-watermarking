@@ -13,7 +13,7 @@ from tqdm.auto import tqdm
 from sentence_transformers import SentenceTransformer, util
 
 from config import InfillArgs, GenericArgs, stop
-from models.infill import InfillModel
+from models.watermark import InfillModel
 from utils.dataset_utils import preprocess2sentence, preprocess_txt, get_result_txt
 from utils.logging import getLogger
 from utils.metric import Metric

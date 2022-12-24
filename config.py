@@ -8,6 +8,7 @@ punctuation = set(string.punctuation)
 # riskset = stop.union(punctuation)
 riskset = punctuation
 
+
 def str2bool(v):
     if isinstance(v, bool):
         return v
@@ -17,6 +18,7 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
 
 def InfillArgs():
     parser = argparse.ArgumentParser(description="Training or Evaluating the infill model")
@@ -39,6 +41,7 @@ def InfillArgs():
     parser.add_argument("--keyword_mask", type=str, default="", choices=['adjacent', 'child'])
 
     return parser
+
 
 def GenericArgs():
     parser = argparse.ArgumentParser(description="Generic argument parser")

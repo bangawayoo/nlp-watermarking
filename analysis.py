@@ -13,7 +13,7 @@ import sys
 import torch
 from sentence_transformers import SentenceTransformer, util
 
-from models.infill import InfillModel
+from models.watermark import InfillModel
 from utils.dataset_utils import preprocess2sentence, preprocess_txt
 from utils.logging import getLogger
 from utils.metric import Metric
