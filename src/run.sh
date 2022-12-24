@@ -1,8 +1,8 @@
 export CUDA_VISIBLE_DEVICES=0
 DTYPE="imdb"
-NAME="kl-longer "
+NAME="forward-kl-longer"
 SPACYM="en_core_web_sm"
-CKPT="./ckpt/forward-kl-longer/255000"
+CKPT="./ckpt/forward-kl-longer/255000.pth"
 
 KR=0.06
 TOPK=4
