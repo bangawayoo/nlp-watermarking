@@ -11,7 +11,7 @@ from tqdm.auto import tqdm
 
 from accelerate import Accelerator
 from transformers import get_scheduler
-from config import InfillArgs, GenericArgs
+from config import WatermarkArgs, GenericArgs, InfillArgs
 from utils.infill_config import INFILL_TOKENIZER, INFILL_MODEL
 from utils.infill_utils import collator_for_masking_random, collator_for_masking_ours, tokenize_function
 from utils.logging import getLogger
@@ -89,7 +89,7 @@ def main():
         eval_dataset,
         shuffle=False,
         batch_size=train_bs*2,
-        collate_fn=collator_for_masking_random
+        collate_fn=collator_for_masking_ours
     )
 
     # log data as texts
@@ -104,7 +104,6 @@ def main():
     # exit()
 
     model = INFILL_MODEL
-
     # load from checkpoint
     if infill_args.model_ckpt:
         state_dict = torch.load(infill_args.model_ckpt)["model"]
@@ -268,6 +267,7 @@ def main():
     if EVAL_INIT or infill_args.eval_only:
         # Evaluation pre-training
         evaluate(eval_dl, 0, 0, save_ckpt=False)
+        evaluate(train_dl, 0, 0, save_ckpt=False)
         if infill_args.eval_only:
             exit()
 

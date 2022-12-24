@@ -17,7 +17,7 @@ from models.watermark import InfillModel
 from utils.dataset_utils import preprocess2sentence, preprocess_txt
 from utils.logging import getLogger
 from utils.metric import Metric
-from config import InfillArgs, GenericArgs, stop
+from config import WatermarkArgs, GenericArgs, stop
 
 from collections import defaultdict
 import pickle

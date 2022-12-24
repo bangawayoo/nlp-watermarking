@@ -8,7 +8,8 @@ from utils.dataset_utils import preprocess2sentence, preprocess_txt, get_result_
 
 class Metric:
     def __init__(self, device, **kwargs):
-        self.sts_model = SentenceTransformer('all-MiniLM-L6-v2')
+        self.sts_model = {"all-MiniLM-L6-v2": SentenceTransformer('all-MiniLM-L6-v2'),
+                          "roberta": SentenceTransformer('sentence-transformers/stsb-roberta-base-v2')}
         self.awt_model = SentenceTransformer('bert-base-nli-mean-tokens')
         # self.nli_model = AutoModelForSequenceClassification.from_pretrained('cross-encoder/nli-deberta-v3-large').to(device)
         # self.nli_tokenizer = AutoTokenizer.from_pretrained('cross-encoder/nli-deberta-v3-large')
@@ -31,7 +32,7 @@ class Metric:
         self.test_cv = cover_texts
         return cover_texts
 
-    def compute_ss(self, path2wm, cover_texts=None):
+    def compute_ss(self, path2wm, model_name, cover_texts=None):
         if cover_texts is None:
             cover_texts = self.test_cv if self. test_cv else self.load_test_cv()
 
@@ -48,8 +49,8 @@ class Metric:
                 batch.append(text)
                 wm_batch.append(wm_text.strip())
             if (len(batch) == 64 or idx == len(watermarked)-1) and len(wm_batch) != 0:
-                wm_emb = self.sts_model.encode(wm_batch, convert_to_tensor=True)
-                emb = self.sts_model.encode(batch, convert_to_tensor=True)
+                wm_emb = self.sts_model['model_name'].encode(wm_batch, convert_to_tensor=True)
+                emb = self.sts_model['model_name'].encode(batch, convert_to_tensor=True)
                 cosine_scores = util.cos_sim(wm_emb, emb)
                 sr_score.extend(torch.diagonal(cosine_scores).tolist())
                 # wm_emb = self.awt_model.encode(wm_batch)

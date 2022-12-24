@@ -1,7 +1,7 @@
 from datasets import load_dataset
 
 from module import Attacker
-from config import CorruptionArgs, InfillArgs
+from config import CorruptionArgs, WatermarkArgs
 from utils.dataset_utils import preprocess2sentence, preprocess_txt
 
 parser = CorruptionArgs()
@@ -19,7 +19,7 @@ if args.augment:
     constraint_kwargs = {'use': args.ss_thres, 'num_sentence': args.num_sentence}
     attacker = Attacker(attack_type, attack_percentage, path2embed, path2result, constraint_kwargs, augment_data_flag=True)
 
-    infill_parser = InfillArgs()
+    infill_parser = WatermarkArgs()
     infill_args, _ = infill_parser.parse_known_args()
 
     dtype = infill_args.data_type

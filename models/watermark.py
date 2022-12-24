@@ -16,7 +16,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForMaskedLM
 import spacy
 
-from config import InfillArgs, riskset
+from config import WatermarkArgs, riskset
 from utils.dataset_utils import preprocess2sentence, preprocess_txt
 from utils.logging import getLogger
 from models.reward import NLIReward
@@ -334,7 +334,7 @@ class InfillModel:
 
 
 if __name__ == "__main__":
-    parser = InfillArgs()
+    parser = WatermarkArgs()
     args = parser.parse_args()
     model = InfillModel(args)
     now = datetime.now()

@@ -12,7 +12,7 @@ import torch
 from tqdm.auto import tqdm
 from sentence_transformers import SentenceTransformer, util
 
-from config import InfillArgs, GenericArgs, stop
+from config import WatermarkArgs, GenericArgs, stop
 from models.watermark import InfillModel
 from utils.dataset_utils import preprocess2sentence, preprocess_txt, get_result_txt
 from utils.logging import getLogger
@@ -21,7 +21,7 @@ from utils.misc import compute_ber
 
 random.seed(1230)
 
-infill_parser = InfillArgs()
+infill_parser = WatermarkArgs()
 generic_parser = GenericArgs()
 infill_args, _ = infill_parser.parse_known_args()
 generic_args, _ = generic_parser.parse_known_args()
@@ -74,9 +74,10 @@ if generic_args.embed:
         os.makedirs(os.path.dirname(result_dir), exist_ok=True)
 
     if generic_args.metric_only:
-        ss_score, ss_dist = metric.compute_ss(result_dir, cover_texts)
+        for model_name in ["roberta", "all-MiniLM-L6-v2"]:
+            ss_score, ss_dist = metric.compute_ss(result_dir, model_name, cover_texts)
+            logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
         nli_score = metric.compute_nli(result_dir, cover_texts)
-        logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
         logger.info(f"nli score: {sum(nli_score) / len(nli_score):.3f}")
         exit()
 
@@ -173,14 +174,18 @@ if generic_args.embed:
     logger.info(f"kwd match rate: {kwd_match_cnt / sample_cnt :.3f}")
     logger.info(f"zero/one ratio: {zero_cnt / one_cnt :.3f}")
 
-    ss_score, ss_dist = metric.compute_ss(result_dir, cover_texts)
+    ss_scores = []
+    for model_name in ["roberta", "all-MiniLM-L6-v2"]:
+        ss_score, ss_dist = metric.compute_ss(result_dir, model_name, cover_texts)
+        ss_scores.append(sum(ss_score) / len(ss_score))
+        logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
     nli_score = metric.compute_nli(result_dir, cover_texts)
-    logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
     logger.info(f"nli score: {sum(nli_score) / len(nli_score):.3f}")
 
     result_dir = os.path.join(dirname, "embed-metrics.txt")
     with open(result_dir, "a") as wr:
-        wr.write(f"num.sample={num_sample}\t bpw={bit_count / word_count}\t ss={sum(ss_score)/len(ss_score)}\t"
+        wr.write(f"num.sample={num_sample}\t bpw={bit_count / word_count}\t "
+                 f"ss={ss_scores[0]}\t ss={ss_scores[1]}\t"
                  f"nli={sum(nli_score) / len(nli_score)}\n")
       
       

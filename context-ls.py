@@ -131,9 +131,10 @@ if __name__ == "__main__":
     word_count = 0
 
     if args.metric_only:
-        ss_score, ss_dist = metric.compute_ss(result_dir, cover_texts)
+        for model_name in ["roberta", "all-MiniLM-L6-v2"]:
+            ss_score, ss_dist = metric.compute_ss(result_dir, model_name, cover_texts)
+            logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
         nli_score = metric.compute_nli(result_dir, cover_texts)
-        logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
         logger.info(f"nli score: {sum(nli_score) / len(nli_score):.3f}")
         exit()
 
@@ -163,14 +164,19 @@ if __name__ == "__main__":
 
         wr.close()
 
-        ss_score, ss_dist = metric.compute_ss(result_dir, cover_texts)
-        nli_score = metric.compute_nli(result_dir, cover_texts)
+
         logger.info(f"Bpw: {bit_count / word_count:.3f}")
-        logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
+        ss_scores = []
+        for model_name in ["roberta", "all-MiniLM-L6-v2"]:
+            ss_score, ss_dist = metric.compute_ss(result_dir, model_name, cover_texts)
+            ss_scores.append(sum(ss_score) / len(ss_score))
+            logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
+        nli_score = metric.compute_nli(result_dir, cover_texts)
         logger.info(f"nli score: {sum(nli_score) / len(nli_score):.3f}")
 
         with open(os.path.join(dirname, "embed-metrics.txt"), "a") as wr:
-            wr.write(f"num.sample={num_sample}\t bpw={bit_count / word_count}\t ss={sum(ss_score) / len(ss_score)}\t"
+            wr.write(f"num.sample={num_sample}\t bpw={bit_count / word_count}\t "
+                     f"ss={ss_scores[0]}\t ss={ss_scores[1]}\t"
                      f"nli={sum(nli_score) / len(nli_score)}\n")
 
 

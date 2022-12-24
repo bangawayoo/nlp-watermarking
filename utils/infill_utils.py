@@ -7,7 +7,7 @@ import spacy
 import torch
 from transformers import DataCollatorForTokenClassification
 
-from config import InfillArgs
+from config import WatermarkArgs
 from utils.infill_config import INFILL_TOKENIZER
 from models.mask import MaskSelector
 from models.kwd import KeywordExtractor

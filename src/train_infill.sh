@@ -1,8 +1,8 @@
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=1
 DEBUG="False"
-EXP_NAME="tmp"
+EXP_NAME="our_mask"
 DATA_TYPE="imdb"
-EPOCH=500
+EPOCH=200
 
 mkdir -p "./ckpt/${EXP_NAME}"
 cp "$0" "./ckpt/${EXP_NAME}"
