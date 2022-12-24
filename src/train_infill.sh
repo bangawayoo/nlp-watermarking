@@ -1,6 +1,6 @@
 export CUDA_VISIBLE_DEVICES=3
 DEBUG="False"
-EXP_NAME="reverse-kl-logit-loss-longer"
+EXP_NAME="tmp"
 DATA_TYPE="imdb"
 EPOCH=500
 

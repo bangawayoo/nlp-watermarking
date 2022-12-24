@@ -1,6 +1,5 @@
 import copy
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = "2"
 import collections
 import random
 
@@ -69,6 +68,60 @@ def main():
 
     feature = feature.add_column("corr_input_ids", corr_feature['input_ids'])
     feature = feature.add_column("corr_attention_mask", corr_feature['attention_mask'])
+
+    wwm_probability = 0.15
+    for feat in feature:
+        word_ids = feat.pop("word_ids", None)
+        corr_feat = {}
+
+        # Create a map between words and corresponding token indices
+        mapping = collections.defaultdict(list)
+        current_word_index = -1
+        current_word = None
+        for idx, word_id in enumerate(word_ids):
+            if word_id is not None:
+                if word_id != current_word:
+                    current_word = word_id
+                    current_word_index += 1
+                mapping[current_word_index].append(idx)
+
+        print(feat['text'])
+        print(mapping)
+        breakpoint()
+        # Randomly mask words
+        mask = np.random.binomial(1, wwm_probability, (len(mapping),))
+
+        input_ids = feat["input_ids"]
+        corr_feat['attention_mask'] = feat.pop("corr_attention_mask", None)
+        corr_input_ids = feat.pop("corr_input_ids", None)
+        labels = input_ids.copy()
+        new_labels = [-100] * len(labels)
+        corr_labels = [-100] * len(corr_input_ids)
+
+        for word_id in np.where(mask)[0]:
+            word_id = word_id.item()
+            token_id = labels[min(mapping[word_id]):max(mapping[word_id]) + 1]
+            # build window of length p centering the masked word
+            p = 3
+            window_start = max(min(mapping[word_id]) - p, 0)
+            window_end = max(mapping[word_id]) + p
+            window = corr_input_ids[window_start:window_end + 1]
+
+            corr_token_idx = np.where(np.isin(window, token_id))[0] + window_start
+            if len(corr_token_idx) == len(token_id):
+                for t_idx in corr_token_idx:
+                    corr_labels[t_idx] = copy.deepcopy(corr_input_ids[t_idx])
+                    corr_input_ids[t_idx] = tokenizer.mask_token_id
+                for idx in mapping[word_id]:
+                    new_labels[idx] = labels[idx]
+                    input_ids[idx] = tokenizer.mask_token_id
+
+        feat['input_ids'] = input_ids
+        feat['labels'] = new_labels
+        corr_feat['input_ids'] = corr_input_ids
+        corr_feat['labels'] = corr_labels
+        corr_feature.append(corr_feat)
+
     feature = feature.remove_columns("text")
 
     from tqdm.auto import tqdm
@@ -98,10 +151,10 @@ def main():
 
             # Randomly mask words
             mask = np.random.binomial(1, wwm_probability, (len(mapping),))
+
             input_ids = feat["input_ids"]
             corr_feat['attention_mask'] = feat.pop("corr_attention_mask", None)
             corr_input_ids = feat.pop("corr_input_ids", None)
-            # print(corr_input_ids)
             labels = input_ids.copy()
             new_labels = [-100] * len(labels)
             corr_labels = [-100] * len(corr_input_ids)
@@ -346,8 +399,8 @@ def main():
             )
 
 
-    EVAL_INIT = False if not infill_args.eval_only else True
-    if EVAL_INIT:
+    EVAL_INIT = False
+    if EVAL_INIT or infill_args.eval_only:
         # Evaluation pre-training
         evaluate(eval_dl, 0, 0, save_ckpt=False)
         if infill_args.eval_only:

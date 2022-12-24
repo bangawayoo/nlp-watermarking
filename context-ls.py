@@ -58,6 +58,7 @@ def main(cover_text, f, extracting=False):
 
         watermarking_wordset[index] = tokenizer.decode(words)
         words_decoded = tokenizer.decode(words).split(" ")
+        # sort token_id alphabetically
         words = [w for w, wd in sorted(zip(words, words_decoded), key=lambda pair: pair[1])]
         words_decoded.sort()
 
@@ -213,24 +214,24 @@ if __name__ == "__main__":
                     continue
 
                 num_corrupted_sen += 1
-                extracted_idset, extracted_indices, watermarking_wordset, encoded_text, message = \
+                extracted_idset, extracted_indices, watermarking_wordset, encoded_text, extracted_msg = \
                     main(wm_text, f, extracting=True)
                 extracted_key = [tokenizer.decode(s_id) for s_id in extracted_idset]
-                sample_level_bit['extracted'].extend(message)
+                sample_level_bit['extracted'].extend(extracted_msg)
                 sample_level_bit['gt'].extend(msg)
-                error_cnt, cnt = compute_ber(msg, message)
+                error_cnt, cnt = compute_ber(msg, extracted_msg)
                 bit_error_agg['sentence_err_cnt'] = bit_error_agg.get('sentence_err_cnt', 0) + error_cnt
                 bit_error_agg['sentence_cnt'] = bit_error_agg.get('sentence_cnt', 0) + cnt
 
                 match_flag = error_cnt == 0
-                logger.info(f"{c_idx} {sen_idx} {match_flag}")
+                logger.debug(f"{c_idx} {sen_idx} {match_flag}")
                 logger.info(f"Corrupted sentence: {wm_text}")
                 logger.info(f"original sentence: {sen}")
                 logger.info(f"Extracted msg: {' '.join(extracted_key)}")
                 logger.info(f"Gt msg: {' '.join(key)} \n")
 
 
-        logger.info(f"Corruption Rate: {num_corrupted_sen / len(clean_watermarked):3f}")
+        # logger.info(f"Corruption Rate: {num_corrupted_sen / len(clean_watermarked):3f}")
         logger.info(f"Sentence BER: {bit_error_agg['sentence_err_cnt']}/{bit_error_agg['sentence_cnt']}="
                     f"{bit_error_agg['sentence_err_cnt'] / bit_error_agg['sentence_cnt']:.3f}")
 

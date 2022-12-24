@@ -29,10 +29,9 @@ class MaskSelector:
             return self.grammar_component(sen, keyword, ent_keyword, ordering_by=self.kwargs['mask_order_by'])
 
     def keyword_disconnected(self, sen, keyword, ent_keyword):
-        punct_removed = [token.text for token in sen if not token.is_punct]
-        max_mask_cnt = int(0.1 * (len(punct_removed) - len(keyword)))
+        # punct_removed = [token.text for token in sen if not token.is_punct]
+        # max_mask_cnt = int(0.1 * (len(punct_removed) - len(keyword)))
         max_mask_cnt = len(keyword)
-        # print(max_mask_cnt)
         self.num_max_mask.append(max_mask_cnt)
         mask_word = []
         mask_idx = []
@@ -83,21 +82,6 @@ class MaskSelector:
                     if self._check_mask_candidate(mask_cand, mask_word, keyword, ent_keyword):
                         mask_word.append(mask_cand)
                         mask_idx.append(mask_cand.i)
-
-        # dep_mask_candidates = [m.dep_ for m in pre_mask_candidates]
-        # mask_candidates = []
-        # for d in self.dep_ordering:
-        #     if d in dep_mask_candidates:
-        #         mask_candidates.extend([m for m, dep in zip(pre_mask_candidates, dep_mask_candidates) if dep == d])
-        #
-        # if mask_candidates:
-        #     mask_candidates = mask_candidates[:max_mask_cnt]
-        #     for m_cand in mask_candidates:
-        #         if self._check_mask_candidate(m_cand, mask_word, keyword, ent_keyword):
-        #             mask_word.append(m_cand)
-        #             mask_idx.append(m_cand.i)
-        #             if len(mask_word) == max_mask_cnt:
-        #                 break
 
         mask_word = [x[1] for x in sorted(zip(mask_idx, mask_word), key= lambda x: x[0])]
         offset = sen[0].i

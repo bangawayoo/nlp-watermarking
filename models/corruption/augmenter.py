@@ -115,7 +115,8 @@ class Augmenter:
         all_transformed_texts = set()
         num_words_to_swap = round(self.pct_words_to_swap * len(attacked_text.words))
         if num_words_to_swap == 0:
-            all_transformed_texts.add(original_text)
+            for _ in range(self.transformations_per_example):
+                all_transformed_texts.add(original_text)
         augmentation_results = []
         for _ in range(self.transformations_per_example):
             current_text = attacked_text
