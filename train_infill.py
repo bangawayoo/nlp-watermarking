@@ -3,7 +3,6 @@ import os
 import random
 
 from datasets import Dataset
-import spacy
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -14,7 +13,7 @@ from accelerate import Accelerator
 from transformers import get_scheduler
 from config import InfillArgs, GenericArgs
 from utils.infill_config import INFILL_TOKENIZER, INFILL_MODEL
-from utils.infill_utils import collator_for_masking, tokenize_function
+from utils.infill_utils import collator_for_masking_random, collator_for_masking_ours, tokenize_function
 from utils.logging import getLogger
 
 random.seed(1230)
@@ -61,8 +60,6 @@ def main():
 
     feature = feature.add_column("corr_input_ids", corr_feature['input_ids'])
     feature = feature.add_column("corr_attention_mask", corr_feature['attention_mask'])
-    feature = feature.remove_columns("text")
-
 
     # train model
     pt_dataset = feature.train_test_split(
@@ -86,13 +83,13 @@ def main():
         train_dataset,
         shuffle=False,
         batch_size=train_bs,
-        collate_fn=collator_for_masking
+        collate_fn=collator_for_masking_ours
     )
     eval_dl = DataLoader(
         eval_dataset,
         shuffle=False,
         batch_size=train_bs*2,
-        collate_fn=collator_for_masking
+        collate_fn=collator_for_masking_random
     )
 
     # log data as texts
@@ -267,7 +264,7 @@ def main():
             )
 
 
-    EVAL_INIT = False
+    EVAL_INIT = True
     if EVAL_INIT or infill_args.eval_only:
         # Evaluation pre-training
         evaluate(eval_dl, 0, 0, save_ckpt=False)
