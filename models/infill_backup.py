@@ -17,7 +17,7 @@ from transformers import AutoTokenizer, AutoModelForMaskedLM
 import spacy
 
 from config import InfillArgs, riskset
-from utils.dataset_utils import preprocess2sentence, preprocess_imdb
+from utils.dataset_utils import preprocess2sentence, preprocess_txt
 from utils.logging import getLogger
 from models.reward import NLIReward
 from models.kwd import KeywordExtractor
@@ -233,12 +233,12 @@ class InfillModel:
             train_num_sample = len(corpus)
             test_num_sample = 1000
 
-        cover_texts = preprocess_imdb(corpus)
+        cover_texts = preprocess_txt(corpus)
         cover_texts = preprocess2sentence(cover_texts, dtype+"-train", start_sample_idx, train_num_sample,
                                           spacy_model=self.args.spacy_model)
 
         test_cover_texts = [t.replace("\n", " ") for t in test_corpus]
-        test_cover_texts = preprocess_imdb(test_cover_texts)
+        test_cover_texts = preprocess_txt(test_cover_texts)
         test_cover_texts = preprocess2sentence(test_cover_texts, dtype+"-test", start_sample_idx, test_num_sample,
                                                spacy_model=self.args.spacy_model)
         return cover_texts, test_cover_texts

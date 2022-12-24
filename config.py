@@ -29,8 +29,14 @@ def InfillArgs():
     parser.add_argument("--exp_name", type=str, default="")
 
     parser.add_argument("--num_epochs", type=int, default=10)
-    parser.add_argument("--data_type", type=str, default='imdb')
+    parser.add_argument("--dtype", type=str, default='imdb')
     parser.add_argument("--spacy_model", type=str, default="en_core_web_sm")
+    parser.add_argument("--keyword_ratio", type=float, default=0.05)
+    parser.add_argument("--topk", type=int, default=4)
+    parser.add_argument("--mask_select_method", type=str, default="",
+                        choices=['keyword_disconnected', "keyword_connected", "grammar"])
+    parser.add_argument("--mask_order_by", type=str, default="", choices=['dep', 'pos'])
+    parser.add_argument("--keyword_mask", type=str, default="", choices=['adjacent', 'child'])
 
     return parser
 
@@ -47,7 +53,6 @@ def GenericArgs():
     parser.add_argument("-debug_mode", type=str2bool, default=False)
     parser.add_argument("-metric_only", type=str2bool, default=False)
 
-
     return parser
 
 
@@ -62,5 +67,6 @@ def CorruptionArgs():
     parser.add_argument("--path2embed", type=str, default="imdb")
     parser.add_argument("--path2result", type=str, default="")
     parser.add_argument("--num_sentence", type=int, default=0)
+    parser.add_argument("--num_corr_per_sentence", type=int, default=1)
 
     return parser

@@ -19,9 +19,11 @@ sr_threshold = 0.95
 stop = set(stopwords.words('english'))
 punctuation = set(string.punctuation)
 riskset = stop.union(punctuation)
+topk = 2
+
 
 def synchronicity_test(index, local_context):
-    mask_candidates = generate_substitute_candidates(local_context)
+    mask_candidates = generate_substitute_candidates(local_context, topk=topk)
 
     if local_context[-2] not in [word['token'] for word in mask_candidates]:
         return False, None
@@ -29,22 +31,36 @@ def synchronicity_test(index, local_context):
     if len(mask_candidates) < 2:  # skip this word; do not exist appropriate candidates
         return False, None
 
-    top1_processed = tokenizer(mask_candidates[0]['sequence'], add_special_tokens=False)['input_ids'][index + 2:]
-    top2_processed = tokenizer(mask_candidates[1]['sequence'], add_special_tokens=False)['input_ids'][index + 2:]
+    FC_sets = []
+    for k in range(len(mask_candidates)):
+        mask_candidates_k = generate_substitute_candidates(tokenizer(mask_candidates[k]['sequence'],
+                                                                   add_special_tokens=False)['input_ids'][index + 2:],
+                                                         topk=topk)
+        FC_sets.append([word['token_str'] for word in mask_candidates_k])
 
-    mask_candidates1 = generate_substitute_candidates(top1_processed)
-    mask_candidates2 = generate_substitute_candidates(top2_processed)
+    # top1_processed = tokenizer(mask_candidates[0]['sequence'], add_special_tokens=False)['input_ids'][index + 2:]
+    # top2_processed = tokenizer(mask_candidates[1]['sequence'], add_special_tokens=False)['input_ids'][index + 2:]
+
+    # mask_candidates1 = generate_substitute_candidates(top1_processed)
+    # mask_candidates2 = generate_substitute_candidates(top2_processed)
+
+    # FC1 = [word['token_str'] for word in mask_candidates1]
+    # FC2 = [word['token_str'] for word in mask_candidates2]
 
     FC = [word['token_str'] for word in mask_candidates]
-    FC1 = [word['token_str'] for word in mask_candidates1]
-    FC2 = [word['token_str'] for word in mask_candidates2]
-    return set(FC) == set(FC1) == set(FC2), [word['token'] for word in mask_candidates]
+    sync_flag = True
+    for k in range(len(FC_sets)):
+        if set(FC) != set(FC_sets[k]):
+            sync_flag = False
+            break
+
+    return sync_flag, [word['token'] for word in mask_candidates]
 
 
 def substitutability_test(new_context, index, words):
     for w in words:
         new_context[-1] = w
-        is_synch, _ = synchronicity_test(index - 1, new_context,)
+        is_synch, _ = synchronicity_test(index - 1, new_context)
         if is_synch:
             return False
     return True
@@ -57,7 +73,7 @@ def concatenate_for_ls(text):
     return tokenizer.decode(tokens_for_ls)
 
 
-def generate_substitute_candidates(text_processed, topk=2):
+def generate_substitute_candidates(text_processed, topk=3):
     text_for_ls = concatenate_for_ls(text_processed)
     mask_candidates = pipe_fill_mask(text_for_ls)
 

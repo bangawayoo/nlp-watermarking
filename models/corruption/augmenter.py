@@ -3,7 +3,7 @@ Augmenter Class
 ===================
 """
 import random
-
+random.seed(1230)
 import tqdm
 
 from textattack.constraints import PreTransformationConstraint

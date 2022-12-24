@@ -9,11 +9,12 @@ import string
 import sys
 
 import torch
+from tqdm.auto import tqdm
 from sentence_transformers import SentenceTransformer, util
 
 from config import InfillArgs, GenericArgs, stop
 from models.infill import InfillModel
-from utils.dataset_utils import preprocess2sentence, preprocess_imdb, get_result_txt
+from utils.dataset_utils import preprocess2sentence, preprocess_txt, get_result_txt
 from utils.logging import getLogger
 from utils.metric import Metric
 from utils.misc import compute_ber
@@ -37,7 +38,13 @@ if "trf" in generic_args.spacy_model:
 model = InfillModel(infill_args, dirname=dirname)
 
 _, cover_texts = model.return_dataset()
-cover_texts = cover_texts[:num_sample]
+
+num_sentence = 0
+for c_idx, sentences in enumerate(cover_texts):
+    num_sentence += len(sentences)
+    if num_sentence >= num_sample:
+        break
+cover_texts = cover_texts[:c_idx+1]
 
 bit_count = 0
 word_count = 0
@@ -73,6 +80,7 @@ if generic_args.embed:
         logger.info(f"nli score: {sum(nli_score) / len(nli_score):.3f}")
         exit()
 
+    progress_bar = tqdm(range(len(cover_texts)))
     wr = open(result_dir, "w")
     for c_idx, sentences in enumerate(cover_texts):
         for s_idx, sen in enumerate(sentences):
@@ -156,6 +164,7 @@ if generic_args.embed:
 
             if candidate_kwd_cnt > 0:
                 upper_bound += math.log2(candidate_kwd_cnt)
+        progress_bar.update(1)
     
     wr.close()
     logger.info(f"UB Bpw : {upper_bound / word_count:.3f}")
@@ -182,7 +191,7 @@ if generic_args.extract:
     logger_name = "EXTRACT"
     if corrupted_flag:
         corrupted_dir = generic_args.corrupted_file_dir
-        corruption_type = corrupted_dir.split("-")[1].replace(".txt", "")
+        corruption_type = os.path.basename(corrupted_dir).split("-")[1]
         logger_name = f"EXTRACT-{corruption_type}"
     logger = getLogger(logger_name,
                        dir_=dirname, debug_mode=DEBUG_MODE)
@@ -194,6 +203,7 @@ if generic_args.extract:
         corrupted_watermarked = []
         with open(corrupted_dir, "r") as reader:
             for line in reader:
+                line = line.split("[sep] ")
                 corrupted_watermarked.append(line)
 
     clean_watermarked = get_result_txt(result_dir)
@@ -217,117 +227,117 @@ if generic_args.extract:
 
     for idx, (c_idx, sen_idx, sub_idset, sub_idx, clean_wm_text, key, msg) in enumerate(clean_watermarked):
         try:
-            wm_text = corrupted_watermarked[idx].strip() if corrupted_flag else clean_wm_text.strip()
+            wm_texts = corrupted_watermarked[idx] if corrupted_flag else [clean_wm_text.strip()]
         except IndexError:
             logger.debug("Create corrupted samples is less than watermarked. Ending extraction...")
             break
-        sen = spacy_tokenizer(wm_text.strip())
+        for wm_text in wm_texts:
+            sen = spacy_tokenizer(wm_text.strip())
 
-        all_keywords, entity_keywords = model.keyword_module.extract_keyword([sen])
-        # for sanity check, one use the original (uncorrupted) texts
-        sen_ = spacy_tokenizer(clean_wm_text.strip())
-        all_keywords_, entity_keywords_ = model.keyword_module.extract_keyword([sen_])
+            all_keywords, entity_keywords = model.keyword_module.extract_keyword([sen])
+            # for sanity check, one use the original (uncorrupted) texts
+            sen_ = spacy_tokenizer(clean_wm_text.strip())
+            all_keywords_, entity_keywords_ = model.keyword_module.extract_keyword([sen_])
 
-        logger.info(f"{c_idx} {sen_idx}")
-        # if attack has failed or no watermarked is embedded, skip
-        if corrupted_flag and wm_text == "skipped":
-            continue
+            logger.info(f"{c_idx} {sen_idx}")
+            # if attack has failed or no watermarked is embedded, skip
+            if corrupted_flag and wm_text == "skipped":
+                continue
 
-        num_corrupted_sen += 1
-        # extracting states for corrupted
-        keyword = all_keywords[0]
-        ent_keyword = entity_keywords[0]
-        agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word) = model.run_iter(sen, keyword, ent_keyword,
-                                                                                              train_flag=False, embed_flag=True)
-        wm_keys = model.tokenizer(" ".join([t.text for t in mask_word]), add_special_tokens=False)['input_ids']
+            num_corrupted_sen += 1
+            # extracting states for corrupted
+            keyword = all_keywords[0]
+            ent_keyword = entity_keywords[0]
+            agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word) = model.run_iter(sen, keyword, ent_keyword,
+                                                                                                  train_flag=False, embed_flag=True)
+            wm_keys = model.tokenizer(" ".join([t.text for t in mask_word]), add_special_tokens=False)['input_ids']
 
-        # extracting states for uncorrupted
-        keyword_ = all_keywords_[0]
-        ent_keyword_ = entity_keywords_[0]
-        agg_cwi_, agg_probs_, tokenized_pt_, (mask_idx_pt_, mask_idx_, mask_word_) = model.run_iter(sen_, keyword_, ent_keyword_,
-                                                                                                    train_flag=False, embed_flag=True)
-        kwd_match_flag = set([x.text for x in keyword]) == set([x.text for x in keyword_])
-        if kwd_match_flag:
-            kwd_match_cnt += 1
+            # extracting states for uncorrupted
+            keyword_ = all_keywords_[0]
+            ent_keyword_ = entity_keywords_[0]
+            agg_cwi_, agg_probs_, tokenized_pt_, (mask_idx_pt_, mask_idx_, mask_word_) = model.run_iter(sen_, keyword_, ent_keyword_,
+                                                                                                        train_flag=False, embed_flag=True)
+            kwd_match_flag = set([x.text for x in keyword]) == set([x.text for x in keyword_])
+            if kwd_match_flag:
+                kwd_match_cnt += 1
 
-        midx_match_flag = set(mask_idx) == set(mask_idx_)
-        if midx_match_flag:
-            midx_match_cnt += 1
+            midx_match_flag = set(mask_idx) == set(mask_idx_)
+            if midx_match_flag:
+                midx_match_cnt += 1
 
-        mword_match_flag = set([m.text for m in mask_word]) == set([m.text for m in mask_word_])
-        if mword_match_flag:
-            mword_match_cnt += 1
+            mword_match_flag = set([m.text for m in mask_word]) == set([m.text for m in mask_word_])
+            if mword_match_flag:
+                mword_match_cnt += 1
 
-        num_mask_match_flag = len(mask_idx) == len(mask_idx_)
-        if num_mask_match_flag:
-            num_mask_match_cnt += 1
+            num_mask_match_flag = len(mask_idx) == len(mask_idx_)
+            if num_mask_match_flag:
+                num_mask_match_cnt += 1
 
-        infill_match_list = []
-        for a, b in zip(agg_cwi, agg_cwi_):
-            if len(a) == len(b):
-                infill_match_flag = (a == b).all()
+            infill_match_list = []
+            for a, b in zip(agg_cwi, agg_cwi_):
+                if len(a) == len(b):
+                    infill_match_flag = (a == b).all()
+                else:
+                    infill_match_flag = False
+                infill_match_list.append(infill_match_flag)
+            if all(infill_match_list):
+                infill_match_cnt += 1
+
+            valid_watermarks = []
+            valid_keys = []
+            tokenized_text = [token.text_with_ws for token in sen]
+
+            if len(agg_cwi) > 0:
+                for cwi in product(*agg_cwi):
+                    wm_text = tokenized_text.copy()
+                    for m_idx, c_id in zip(mask_idx, cwi):
+                        wm_text[m_idx] = re.sub(r"\S+", model.tokenizer.decode(c_id), wm_text[m_idx])
+
+                    wm_tokenized = spacy_tokenizer("".join(wm_text).strip())
+                    # extract keyword of watermark
+                    wm_keywords, wm_ent_keywords = model.keyword_module.extract_keyword([wm_tokenized])
+                    wm_kwd = wm_keywords[0]
+                    wm_ent_kwd = wm_ent_keywords[0]
+                    wm_mask_idx, wm_mask = model.mask_selector.return_mask(wm_tokenized, wm_kwd, wm_ent_kwd)
+
+                    # checking whether the watermark can be embedded
+                    mask_match_flag = len(wm_mask) > 0 and set(wm_mask_idx) == set(mask_idx)
+                    if mask_match_flag:
+                        valid_watermarks.append(wm_tokenized.text)
+                        valid_keys.append(torch.stack(cwi).tolist())
+
+            extracted_msg = []
+            if len(valid_keys) > 1:
+                try:
+                    extracted_msg_decimal = valid_keys.index(wm_keys)
+                    infill_match_cnt2 += 1
+                except:
+                    similarity = [len(set(wm_keys).intersection(x)) for x in valid_keys]
+                    similar_key = max(zip(valid_keys, similarity), key=lambda x: x[1])[0]
+                    extracted_msg_decimal = valid_keys.index(similar_key)
+
+                num_digit = math.ceil(math.log2(len(valid_keys)))
+                extracted_msg = format(extracted_msg_decimal, f"0{num_digit}b")
+                extracted_msg = list(map(int, extracted_msg))
             else:
-                infill_match_flag = False
-            infill_match_list.append(infill_match_flag)
-        if all(infill_match_list):
-            infill_match_cnt += 1
-
-        valid_watermarks = []
-        valid_keys = []
-        tokenized_text = [token.text_with_ws for token in sen]
-
-        if len(agg_cwi) > 0:
-            for cwi in product(*agg_cwi):
-                wm_text = tokenized_text.copy()
-                for m_idx, c_id in zip(mask_idx, cwi):
-                    wm_text[m_idx] = re.sub(r"\S+", model.tokenizer.decode(c_id), wm_text[m_idx])
-
-                wm_tokenized = spacy_tokenizer("".join(wm_text).strip())
-                # extract keyword of watermark
-                wm_keywords, wm_ent_keywords = model.keyword_module.extract_keyword([wm_tokenized])
-                wm_kwd = wm_keywords[0]
-                wm_ent_kwd = wm_ent_keywords[0]
-                wm_mask_idx, wm_mask = model.mask_selector.return_mask(wm_tokenized, wm_kwd, wm_ent_kwd)
-
-                # checking whether the watermark can be embedded
-                mask_match_flag = len(wm_mask) > 0 and set(wm_mask_idx) == set(mask_idx)
-                if mask_match_flag:
-                    valid_watermarks.append(wm_tokenized.text)
-                    valid_keys.append(torch.stack(cwi).tolist())
-
-        extracted_msg = []
-        if len(valid_keys) > 1:
-            try:
-                extracted_msg_decimal = valid_keys.index(wm_keys)
                 infill_match_cnt2 += 1
-            except:
-                similarity = [len(set(wm_keys).intersection(x)) for x in valid_keys]
-                similar_key = max(zip(valid_keys, similarity), key=lambda x: x[1])[0]
-                extracted_msg_decimal = valid_keys.index(similar_key)
 
-            num_digit = math.ceil(math.log2(len(valid_keys)))
-            extracted_msg = format(extracted_msg_decimal, f"0{num_digit}b")
-            extracted_msg = list(map(int, extracted_msg))
-        else:
-            infill_match_cnt2 += 1
+            one_cnt += sum(msg)
+            zero_cnt += len(msg) - sum(msg)
 
-        one_cnt += sum(msg)
-        zero_cnt += len(msg) - sum(msg)
+            error_cnt, cnt = compute_ber(msg, extracted_msg)
+            bit_error_agg['sentence_err_cnt'] = bit_error_agg.get('sentence_err_cnt', 0) + error_cnt
+            bit_error_agg['sentence_cnt'] = bit_error_agg.get('sentence_cnt', 0) + cnt
 
-        error_cnt, cnt = compute_ber(msg, extracted_msg)
-        bit_error_agg['sentence_err_cnt'] = bit_error_agg.get('sentence_err_cnt', 0) + error_cnt
-        bit_error_agg['sentence_cnt'] = bit_error_agg.get('sentence_cnt', 0) + cnt
-
-        # logger.info(f"Corrupted sentence: {corrupted_sen}")
-        # logger.info(f"original sentence: {sen}")
-        # logger.info(f"Extracted msg: {' '.join(extracted_key)}")
-        # logger.info(f"Gt msg: {' '.join(key)} \n")
-
-        # agg_sentences = ""
-        # agg_msg = []
+            # logger.info(f"Corrupted sentence: {corrupted_sen}")
+            # logger.info(f"original sentence: {sen}")
+            # logger.info(f"Extracted msg: {' '.join(extracted_key)}")
+            # logger.info(f"Gt msg: {' '.join(key)} \n")
+            # agg_sentences = ""
+            # agg_msg = []
 
     if corrupted_flag:
-        logger.info(f"Corruption Rate: {num_corrupted_sen / len(corrupted_watermarked):3f}")
+        # logger.info(f"Corruption Rate: {num_corrupted_sen / len(corrupted_watermarked):3f}")
         with open(os.path.join(dirname, "ber.txt"), "a") as wr:
             wr.write(f"{corrupted_dir}\t {bit_error_agg['sentence_err_cnt'] / bit_error_agg['sentence_cnt']}\n")
 

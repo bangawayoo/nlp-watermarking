@@ -143,11 +143,11 @@ def roc_stories(split='train', data_dir=None, with_titles=True, exclude_nonstand
 
   return stories
 
-def preprocess_imdb(corpus):
-  CLEANR = re.compile('<.*?>')
+def preprocess_txt(corpus):
   corpus = [t.replace("\n", " ") for t in corpus]
   corpus = [t.replace("\t", " ") for t in corpus]
-  corpus = [re.sub(CLEANR, '', c) for c in corpus]
+  CLEANR = re.compile('<.*?>')
+  corpus = [re.sub(CLEANR, '', c) for c in corpus if len(c) > 0]
   corpus = [re.sub(r"\.+", "..", c) for c in corpus]
   return corpus
 
@@ -186,7 +186,7 @@ def get_result_txt(result_txt):
             results.append(line)
     return results
 
-def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample,
+def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample=1000,
                         population_size=1000, cutoff_q=(0.05, 0.95),
                         spacy_model="en_core_web_sm"):
     population_size = max(population_size, start_sample_idx + num_sample)

@@ -4,6 +4,7 @@ import random
 import sys
 random.seed(1230)
 sys.path.append(os.path.join(os.getcwd()))
+import time
 
 from augmenter import Augmenter
 from sentence_transformers import SentenceTransformer
@@ -20,7 +21,8 @@ from utils.logging import getLogger
 
 
 class Attacker:
-    def __init__(self, attack_type, attack_percentage, path2txt, path2result, constraint_kwargs, augment_data_flag=False):
+    def __init__(self, attack_type, attack_percentage, path2txt, path2result, constraint_kwargs,
+                 augment_data_flag=False, num_corr_per_sentence=1):
         log_dir = os.path.dirname(path2txt) if not augment_data_flag else "./data"
         self.logger = getLogger(f"CORRUPTION-{attack_type}",
                                         dir_=log_dir)
@@ -37,6 +39,8 @@ class Attacker:
         self.logger.info(f"Parameters are {constraint_kwargs}")
         self.attack_type = attack_type
         self.num_sentence = constraint_kwargs.get('num_sentence', None)
+        if isinstance(self.num_sentence, int):
+            self.num_sentence *= num_corr_per_sentence
 
         use_thres = constraint_kwargs.get("use", 0)
         constraints = [
@@ -47,7 +51,7 @@ class Attacker:
                 window_size=None)
         ]
         self.augmenter_choices = []
-        transformations_per_example = 5 if augment_data_flag else 1
+        transformations_per_example = num_corr_per_sentence
 
         if attack_type == "insertion" or augment_data_flag:
             shared_masked_lm = transformers.AutoModelForCausalLM.from_pretrained("distilroberta-base")
@@ -90,56 +94,57 @@ class Attacker:
 
 
     def attack_sentence(self, attack_all_samples=True):
+        s_time = time.time()
         self.texts = get_result_txt(self.path2txt)
         skipped_cnt = 0
         attacked_cnt = 0
         for idx, (c_idx, sen_idx, sub_idset, sub_idx, wm_sen, key, msg) in enumerate(tqdm(self.texts)):
             self.logger.info(f"{c_idx} {sen_idx}")
             if attack_all_samples or len(msg) > 0:
-                corrupted_sentence = self.augmenter_choices[0].augment(wm_sen)[0]
-                self.logger.info(corrupted_sentence)
-                self.logger.info(wm_sen)
-                if corrupted_sentence == wm_sen:
-                    skipped_cnt += 1
-                attacked_cnt += 1
+                corrupted_sentences = self.augmenter_choices[0].augment(wm_sen)
+                self.wr.write("[sep] ".join(corrupted_sentences) + "\n")
+                attacked_cnt += len(corrupted_sentences)
 
             else:
                 corrupted_sentence = wm_sen
                 skipped_cnt += 1
+                self.wr.write(corrupted_sentence + "\n")
 
-            self.wr.write(corrupted_sentence + "\n")
-            if self.num_sentence and self.num_sentence == attacked_cnt:
+            if self.num_sentence and self.num_sentence <= attacked_cnt:
                 break
+
 
         self.wr.close()
         self.logger.info(f"Skipped {skipped_cnt} and created {attacked_cnt} corrupted sentences")
+        elapsed = time.strftime("%H:%M:%S", time.gmtime(time.time() - s_time))
+        self.logger.info(f"Elapsed time : {elapsed}")
 
-    def attack_sample(self):
-        sentence_agg = []
-        augmented_data = []
-        prev_idx = 0
-
-        for idx, (c_idx, sen_idx, sub_idset, sub_idx, wm_sen, key, msg) in enumerate(tqdm(self.texts)):
-            if prev_idx == c_idx:
-                sentence_agg.append(wm_sen)
-                if idx != len(self.texts)-1: # for the last sample, do not continue to the next loop
-                    continue
-
-            while True:
-                random_sen_idx = random.choice(range(len(sentence_agg)))
-                clean_sentence = sentence_agg[random_sen_idx]
-                corrupted_sentence = self.augmenter_choices[0].augment(clean_sentence)[0]
-                if len(clean_sentence) != len(corrupted_sentence):
-                    break
-
-            sentence_agg[random_sen_idx] = corrupted_sentence
-            for sen in sentence_agg:
-                self.wr.write(sen + "\n")
-
-            self.wr.close()
-            augmented_data.extend(sentence_agg)
-            sentence_agg = [wm_sen]
-            prev_idx = c_idx
+    # def attack_sample(self):
+    #     sentence_agg = []
+    #     augmented_data = []
+    #     prev_idx = 0
+    #
+    #     for idx, (c_idx, sen_idx, sub_idset, sub_idx, wm_sen, key, msg) in enumerate(tqdm(self.texts)):
+    #         if prev_idx == c_idx:
+    #             sentence_agg.append(wm_sen)
+    #             if idx != len(self.texts)-1: # for the last sample, do not continue to the next loop
+    #                 continue
+    #
+    #         while True:
+    #             random_sen_idx = random.choice(range(len(sentence_agg)))
+    #             clean_sentence = sentence_agg[random_sen_idx]
+    #             corrupted_sentence = self.augmenter_choices[0].augment(clean_sentence)[0]
+    #             if len(clean_sentence) != len(corrupted_sentence):
+    #                 break
+    #
+    #         sentence_agg[random_sen_idx] = corrupted_sentence
+    #         for sen in sentence_agg:
+    #             self.wr.write(sen + "\n")
+    #
+    #         self.wr.close()
+    #         augmented_data.extend(sentence_agg)
+    #         sentence_agg = [wm_sen]
+    #         prev_idx = c_idx
 
     def augment_data(self, cover_texts):
         attacked_cnt = 0

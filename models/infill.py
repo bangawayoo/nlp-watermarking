@@ -17,7 +17,7 @@ from transformers import AutoTokenizer, AutoModelForMaskedLM
 import spacy
 
 from config import InfillArgs, riskset
-from utils.dataset_utils import preprocess2sentence, preprocess_imdb
+from utils.dataset_utils import preprocess2sentence, preprocess_txt
 from utils.logging import getLogger
 from models.reward import NLIReward
 from models.kwd import KeywordExtractor
@@ -33,7 +33,7 @@ class InfillModel:
             self.logger = getLogger("INFILL-WATERMARK")
         self.device = torch.device('cuda')
         self.args = args
-        self.train_d, self.test_d = self._init_dataset(args.data_type)
+        self.train_d, self.test_d = self._init_dataset(args.dtype)
         if args.train_infill:
             self.grad_cnt = 0
             params = [p for p in self.lm_head.parameters()]
@@ -44,21 +44,28 @@ class InfillModel:
                                  }
 
         self.tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
-        self.lm_head = AutoModelForMaskedLM.from_pretrained("bert-base-cased")
+        self.lm_head = AutoModelForMaskedLM.from_pretrained("bert-base-cased").to(self.device)
 
         if args.model_ckpt:
             state_dict = torch.load(args.model_ckpt, map_location=self.device)["model"]
             self.lm_head.load_state_dict(state_dict)
         self.nli_reward = None if args.do_watermark else NLIReward(self.device)
-        self.keyword_module = KeywordExtractor(ratio=0.06)
-        self.mask_selector = MaskSelector()
+        self.keyword_module = KeywordExtractor(ratio=self.args.keyword_ratio)
+        self.logger.info(f"Using component: [{args.mask_select_method}]")
+        if "keyword" in args.mask_select_method:
+            self.logger.info(f"and mask selection by [{args.keyword_mask}]")
+        else:
+            self.logger.info(f"and ordering by [{args.mask_order_by}]")
+        self.mask_selector = MaskSelector(method=args.mask_select_method,
+                                          mask_order_by=args.mask_order_by,
+                                          keyword_mask=args.keyword_mask)
         self.nlp = spacy.load(args.spacy_model)
 
         self.metric = {'entail_score': [], 'num_subs': [], 'train_entail_score':[]}
         self.best_metric = {'entail_score': 0}
 
 
-    def fill_mask(self, text, mask_idx_token, train_flag=True, topk=4, embed_flag=False):
+    def fill_mask(self, text, mask_idx_token, train_flag=True, embed_flag=False):
         """
         text: Spacy.Span object (sentence of Spacy.Doc)
         mask_idx_token: List[index of masks in Spacy tokens] (c.f. mask_idx_pt: mask index in Pytorch Tensors)
@@ -107,7 +114,7 @@ class InfillModel:
                 valid_input[idx] = False
                 continue
             else:
-                candidate_word_ids = candidate_word_ids[:topk]
+                candidate_word_ids = candidate_word_ids[:self.args.topk]
                 # candidate_word_ids = candidate_word_ids
 
             agg_cwi.append(candidate_word_ids)
@@ -171,7 +178,9 @@ class InfillModel:
         agg_cwi, agg_probs, tokenized_pt, mask_idx_pt = [], [], {}, []
 
         if mask_idx:
-            agg_cwi, agg_probs, mask_idx_pt, tokenized_pt  = self.fill_mask(sen, mask_idx, train_flag=train_flag, embed_flag=embed_flag)
+            agg_cwi, agg_probs, mask_idx_pt, tokenized_pt  = self.fill_mask(sen, mask_idx,
+                                                                            train_flag=train_flag,
+                                                                            embed_flag=embed_flag)
 
         return agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word)
 
@@ -249,6 +258,10 @@ class InfillModel:
         if dtype == "imdb":
             corpus = load_dataset(dtype)['train']['text']
             test_corpus = load_dataset(dtype)['test']['text']
+        elif dtype == "wikitext":
+            corpus = load_dataset(dtype, 'wikitext-2-raw-v1')['train']['text']
+            test_corpus = load_dataset(dtype, 'wikitext-2-raw-v1')['test']['text']
+
         else:
             raise NotImplementedError
 
@@ -261,11 +274,11 @@ class InfillModel:
 
         cover_texts = None
         if not self.args.do_watermark:
-            cover_texts = preprocess_imdb(corpus)
+            cover_texts = preprocess_txt(corpus)
             cover_texts = preprocess2sentence(cover_texts, dtype+"-train", start_sample_idx, train_num_sample,
                                               spacy_model=self.args.spacy_model)
 
-        test_cover_texts = preprocess_imdb(test_corpus)
+        test_cover_texts = preprocess_txt(test_corpus)
         test_cover_texts = preprocess2sentence(test_cover_texts, dtype+"-test", start_sample_idx, test_num_sample,
                                                spacy_model=self.args.spacy_model)
         return cover_texts, test_cover_texts

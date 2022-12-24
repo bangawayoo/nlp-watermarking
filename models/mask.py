@@ -15,25 +15,24 @@ class MaskSelector:
                              'dobj', 'nmod', 'attr', 'csubjpass', 'meta', 'pobj', 'amod', 'npadvmod', 'appos', 'acomp',
                              'compound', 'oprd', 'nummod']
         self.pos_ordering = ['CCONJ', 'AUX', 'ADP', 'SCONJ', 'DET', 'SPACE', 'INTJ', 'PRON', 'SYM', 'VERB', 'ADV',
-                             'PUNCT', 'X', 'PART', 'NOUN', 'ADJ', 'PROPN', 'NUM',]
+                             'PUNCT', 'X', 'PART', 'NOUN', 'ADJ', 'PROPN', 'NUM']
 
-    def return_mask(self, sen, keyword, ent_keyword, method="grammar"):
+    def return_mask(self, sen, keyword, ent_keyword):
         """
         keyword: List[Spacy tokens]
         """
-        if method == "keyword_disconnected":
+        if self.kwargs['method'] == "keyword_disconnected":
             return self.keyword_disconnected(sen, keyword, ent_keyword)
-        elif method == "keyword_connected":
-            return self.keyword_connected(sen, keyword, ent_keyword)
-        elif method == "grammar":
-            return self.grammar_component(sen, keyword, ent_keyword, ordering_by="dep")
+        elif self.kwargs['method'] == "keyword_connected":
+            return self.keyword_connected(sen, keyword, ent_keyword, type=self.kwargs['keyword_mask'])
+        elif self.kwargs['method'] == "grammar":
+            return self.grammar_component(sen, keyword, ent_keyword, ordering_by=self.kwargs['mask_order_by'])
 
     def keyword_disconnected(self, sen, keyword, ent_keyword):
         punct_removed = [token.text for token in sen if not token.is_punct]
         max_mask_cnt = int(0.1 * (len(punct_removed) - len(keyword)))
         max_mask_cnt = len(keyword)
         # print(max_mask_cnt)
-        # breakpoint()
         self.num_max_mask.append(max_mask_cnt)
         mask_word = []
         mask_idx = []

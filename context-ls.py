@@ -10,7 +10,7 @@ from config import GenericArgs
 from utils.misc import compute_ber, riskset, stop
 from utils.contextls_utils import synchronicity_test, substitutability_test, tokenizer, riskset, stop
 from utils.logging import getLogger
-from utils.dataset_utils import preprocess_imdb, preprocess2sentence, get_result_txt
+from utils.dataset_utils import preprocess_txt, preprocess2sentence, get_result_txt
 from utils.metric import Metric
 
 random.seed(1230)
@@ -116,9 +116,16 @@ if __name__ == "__main__":
         os.makedirs(dirname, exist_ok=True)
     result_dir = os.path.join(dirname, "watermarked.txt")
 
-    cover_texts = preprocess_imdb(corpus)
-    cover_texts = preprocess2sentence(cover_texts, dtype+"-test", start_sample_idx, num_sample,
-                                      spacy_model=args.spacy_model)
+    cover_texts = preprocess_txt(corpus)
+    cover_texts = preprocess2sentence(cover_texts, dtype+"-test", start_sample_idx, spacy_model=args.spacy_model)
+
+    num_sentence = 0
+    for c_idx, sentences in enumerate(cover_texts):
+        num_sentence += len(sentences)
+        if num_sentence >= num_sample:
+            break
+    cover_texts = cover_texts[:c_idx + 1]
+
     bit_count = 0
     word_count = 0
 
@@ -157,6 +164,7 @@ if __name__ == "__main__":
 
         ss_score, ss_dist = metric.compute_ss(result_dir, cover_texts)
         nli_score = metric.compute_nli(result_dir, cover_texts)
+        logger.info(f"Bpw: {bit_count / word_count:.3f}")
         logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
         logger.info(f"nli score: {sum(nli_score) / len(nli_score):.3f}")
 
@@ -174,6 +182,7 @@ if __name__ == "__main__":
         if corrupted_flag:
             with open(corrupted_dir, "r") as reader:
                 for line in reader:
+                    line = line.split("[sep] ")
                     corrupted_watermarked.append(line)
 
         clean_watermarked = get_result_txt(result_dir)
@@ -183,7 +192,7 @@ if __name__ == "__main__":
         bit_error_agg = {}
 
         prev_c_idx = 0
-        for idx, (c_idx, sen_idx, sub_idset, sub_idx, wm_sen, key, msg) in enumerate(clean_watermarked):
+        for idx, (c_idx, sen_idx, sub_idset, sub_idx, clean_wm_sen, key, msg) in enumerate(clean_watermarked):
             if prev_c_idx != c_idx:
                 error_cnt, cnt = compute_ber(sample_level_bit['extracted'], sample_level_bit['gt'])
                 bit_error_agg['sample_err_cnt'] = bit_error_agg.get('sample_err_cnt', 0) + error_cnt
@@ -191,32 +200,34 @@ if __name__ == "__main__":
                 sample_level_bit = {'gt':[], 'extracted':[]}
                 prev_c_idx = c_idx
 
-            try:
-                original_sentences = cover_texts[c_idx]
-                sen = original_sentences[sen_idx]
-                corrupted_sen = corrupted_watermarked[idx].strip() if corrupted_flag else wm_sen
-            except:
-                breakpoint()
+            if len(corrupted_watermarked) > 0 and len(corrupted_watermarked) <= idx:
+                logger.info(f"Extracted all corrupted watermarks. Ending extraction... ")
+                break
 
-            if corrupted_flag and corrupted_sen == "skipped":
-                continue
+            original_sentences = cover_texts[c_idx]
+            sen = original_sentences[sen_idx]
 
-            num_corrupted_sen += 1
-            extracted_idset, extracted_indices, watermarking_wordset, encoded_text, message = \
-                main(corrupted_sen, f, extracting=True)
-            extracted_key = [tokenizer.decode(s_id) for s_id in extracted_idset]
-            sample_level_bit['extracted'].extend(message)
-            sample_level_bit['gt'].extend(msg)
-            error_cnt, cnt = compute_ber(msg, message)
-            bit_error_agg['sentence_err_cnt'] = bit_error_agg.get('sentence_err_cnt', 0) + error_cnt
-            bit_error_agg['sentence_cnt'] = bit_error_agg.get('sentence_cnt', 0) + cnt
+            wm_texts = corrupted_watermarked[idx] if corrupted_flag else [clean_wm_sen.strip()]
+            for wm_text in wm_texts:
+                if corrupted_flag and wm_text == "skipped":
+                    continue
 
-            match_flag = error_cnt == 0
-            logger.info(f"{c_idx} {sen_idx} {match_flag}")
-            logger.info(f"Corrupted sentence: {corrupted_sen}")
-            logger.info(f"original sentence: {sen}")
-            logger.info(f"Extracted msg: {' '.join(extracted_key)}")
-            logger.info(f"Gt msg: {' '.join(key)} \n")
+                num_corrupted_sen += 1
+                extracted_idset, extracted_indices, watermarking_wordset, encoded_text, message = \
+                    main(wm_text, f, extracting=True)
+                extracted_key = [tokenizer.decode(s_id) for s_id in extracted_idset]
+                sample_level_bit['extracted'].extend(message)
+                sample_level_bit['gt'].extend(msg)
+                error_cnt, cnt = compute_ber(msg, message)
+                bit_error_agg['sentence_err_cnt'] = bit_error_agg.get('sentence_err_cnt', 0) + error_cnt
+                bit_error_agg['sentence_cnt'] = bit_error_agg.get('sentence_cnt', 0) + cnt
+
+                match_flag = error_cnt == 0
+                logger.info(f"{c_idx} {sen_idx} {match_flag}")
+                logger.info(f"Corrupted sentence: {wm_text}")
+                logger.info(f"original sentence: {sen}")
+                logger.info(f"Extracted msg: {' '.join(extracted_key)}")
+                logger.info(f"Gt msg: {' '.join(key)} \n")
 
 
         logger.info(f"Corruption Rate: {num_corrupted_sen / len(clean_watermarked):3f}")

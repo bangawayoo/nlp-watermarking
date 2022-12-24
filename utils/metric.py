@@ -1,10 +1,10 @@
 from datasets import load_dataset
 import numpy as np
-from sentence_transformers import SentenceTransformer, util, CrossEncoder
+from sentence_transformers import SentenceTransformer, util
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-from utils.dataset_utils import preprocess2sentence, preprocess_imdb, get_result_txt
+from utils.dataset_utils import preprocess2sentence, preprocess_txt, get_result_txt
 
 class Metric:
     def __init__(self, device, **kwargs):
@@ -25,7 +25,7 @@ class Metric:
     def load_test_cv(self):
         corpus = load_dataset(self.args['dtype'])['test']['text']
         cover_texts = [t.replace("\n", " ") for t in corpus]
-        cover_texts = preprocess_imdb(cover_texts)
+        cover_texts = preprocess_txt(cover_texts)
         cover_texts = preprocess2sentence(cover_texts, self.args['dtype'] + "-test", 0, self.args['num_sample'],
                                           spacy_model=self.args['spacy_model'])
         self.test_cv = cover_texts
