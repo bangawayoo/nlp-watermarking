@@ -89,19 +89,24 @@ def main():
 
     train_bs = 64 if not DEBUG_MODE else 8
 
+    if infill_args.masking_type == "random":
+        collate_func = collator_for_masking_random
+    else:
+        collate_func = partial(collator_for_masking_ours, mask_selector=mask_selector, keyword_module=keyword_module)
+
     # train_dataset = pt_dataset['train'].select(range(1))
     train_dataset = pt_dataset['train']
     train_dl = DataLoader(
         train_dataset,
         shuffle=False,
         batch_size=train_bs,
-        collate_fn=partial(collator_for_masking_ours, mask_selector=mask_selector, keyword_module=keyword_module)
+        collate_fn=collate_func
     )
     eval_dl = DataLoader(
         eval_dataset,
         shuffle=False,
         batch_size=train_bs*2,
-        collate_fn=partial(collator_for_masking_ours, mask_selector=mask_selector, keyword_module=keyword_module)
+        collate_fn=collate_func
     )
 
     # log data as texts
@@ -293,7 +298,6 @@ def main():
         logger.info("Evaluating...")
         # Evaluation pre-training
         evaluate(eval_dl, 0, 0, save_ckpt=False)
-        evaluate(train_dl, 0, 0, save_ckpt=False)
         if infill_args.eval_only:
             exit()
 
