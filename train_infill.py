@@ -104,20 +104,10 @@ def main():
     # exit()
 
     model = INFILL_MODEL
-    # load from checkpoint
-    if infill_args.model_ckpt:
-        state_dict = torch.load(infill_args.model_ckpt)["model"]
-        model.load_state_dict(state_dict)
-
     params = [p for n, p in model.named_parameters()]
     optimizer = AdamW(params, lr=5e-5)
     fixed_model = copy.deepcopy(model)
     fixed_model.eval()
-
-    accelerator = Accelerator()
-    model, fixed_model, optimizer, train_dl, eval_dl = accelerator.prepare(
-        model, fixed_model, optimizer, train_dl, eval_dl
-    )
 
     num_train_epochs = infill_args.num_epochs
     num_update_steps_per_epoch = len(train_dl)
@@ -130,6 +120,23 @@ def main():
         num_training_steps=num_training_steps,
     )
 
+    accelerator = Accelerator()
+    # load from checkpoint
+    if infill_args.model_ckpt:
+        model.from_pretrained(infill_args.model_ckpt)
+
+        optim_scheduler_states = torch.load(os.path.join(infill_args.model_ckpt, "/optim_state.pth"))
+
+        logger.info("Loading optimizer states from checkpoint dir ..")
+        accelerator.scaler.load_state_dict(optim_scheduler_states["scaler"])
+        optimizer.load_state_dict(optim_scheduler_states["optimizer"])
+        completed_epochs = optim_scheduler_states["epoch"]
+        completed_steps = optim_scheduler_states["steps"]
+        lr_scheduler.load_state_dict(optim_scheduler_states["scheduler"])
+
+    model, fixed_model, optimizer, train_dl, eval_dl = accelerator.prepare(
+        model, fixed_model, optimizer, train_dl, eval_dl
+    )
 
     progress_bar = tqdm(range(num_training_steps))
     kl_criterion = torch.nn.KLDivLoss(reduction="batchmean")
@@ -257,9 +264,18 @@ def main():
         if save_ckpt:
             accelerator.wait_for_everyone()
             unwrapped = accelerator.unwrap_model(model)
+            unwrapped.save_pretrained(
+                os.path.join(ckpt_dir, f"{step}")
+            )
             accelerator.save(
-                {"model": unwrapped.state_dict()},
-                os.path.join(ckpt_dir, f"{step}.pth")
+                {
+                    "epoch": epoch,
+                    "steps": step,
+                    "optimizer": optimizer.state_dict(),
+                    "scheduler": lr_scheduler.state_dict(),
+                    "scaler": accelerator.scaler.state_dict(),
+                },
+                os.path.join(ckpt_dir, f"{step}/optim_state.pth")
             )
 
 
@@ -285,7 +301,6 @@ def main():
                                                 batch['input_ids'] == 101).nonzero(as_tuple=True)
                 else:
                     masked_index = (batch['input_ids'] == tokenizer.mask_token_id).nonzero(as_tuple=True)
-
 
             corr_outputs = model(**corr_batch)
             if optimize_cls_token:
@@ -345,12 +360,19 @@ def main():
 
     accelerator.wait_for_everyone()
     unwrapped = accelerator.unwrap_model(model)
-    accelerator.save(
-        {"model": unwrapped.state_dict()},
-        os.path.join(ckpt_dir, "last.pth")
+    unwrapped.save_pretrained(
+        os.path.join(ckpt_dir, f"last")
     )
-    accelerator.save_state(os.path.join(ckpt_dir, "last"))
-
+    accelerator.save(
+        {
+            "epoch": epoch,
+            "steps": step,
+            "optimizer": optimizer.state_dict(),
+            "scheduler": lr_scheduler.state_dict(),
+            "scaler": accelerator.scaler.state_dict(),
+        },
+        os.path.join(ckpt_dir, "last/optim_state.pth")
+    )
 
 if __name__ == "__main__":
     main()

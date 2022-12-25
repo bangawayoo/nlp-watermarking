@@ -38,7 +38,7 @@ def WatermarkArgs():
     parser.add_argument("--mask_select_method", type=str, default="",
                         choices=['keyword_disconnected', "keyword_connected", "grammar"])
     parser.add_argument("--mask_order_by", type=str, default="", choices=['dep', 'pos'])
-    parser.add_argument("--keyword_mask", type=str, default="", choices=['adjacent', 'child'])
+    parser.add_argument("--keyword_mask", type=str, default="", choices=['adjacent', 'child', 'child_dep'])
 
     return parser
 

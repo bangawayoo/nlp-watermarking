@@ -45,10 +45,13 @@ class InfillModel:
 
         self.tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
         self.lm_head = AutoModelForMaskedLM.from_pretrained("bert-base-cased").to(self.device)
-
         if args.model_ckpt:
-            state_dict = torch.load(args.model_ckpt, map_location=self.device)["model"]
-            self.lm_head.load_state_dict(state_dict)
+            if args.model_ckpt.endswith(".pth"):
+                state_dict = torch.load(args.model_ckpt, map_location=self.device)["model"]
+                self.lm_head.load_state_dict(state_dict)
+            else:
+                self.lm_head.from_pretrained(args.model_ckpt)
+
         self.nli_reward = None if args.do_watermark else NLIReward(self.device)
         self.keyword_module = KeywordExtractor(ratio=self.args.keyword_ratio)
         self.logger.info(f"Using component: [{args.mask_select_method}]")
@@ -261,7 +264,8 @@ class InfillModel:
         elif dtype == "wikitext":
             corpus = load_dataset(dtype, 'wikitext-2-raw-v1')['train']['text']
             test_corpus = load_dataset(dtype, 'wikitext-2-raw-v1')['test']['text']
-
+            corpus = [t for t in corpus if not t.strip().startswith("=") and len(t) > 0]
+            test_corpus = [t for t in test_corpus if not t.strip().startswith("=") and len(t) > 0]
         else:
             raise NotImplementedError
 
@@ -274,7 +278,7 @@ class InfillModel:
 
         cover_texts = None
         if not self.args.do_watermark:
-            cover_texts = preprocess_txt(corpus)
+            cover_texts = preprocess_txt(corpus, dtype)
             cover_texts = preprocess2sentence(cover_texts, dtype+"-train", start_sample_idx, train_num_sample,
                                               spacy_model=self.args.spacy_model)
 

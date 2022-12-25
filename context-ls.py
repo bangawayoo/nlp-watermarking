@@ -94,6 +94,10 @@ if __name__ == "__main__":
         mode = "EMBED"
     elif args.extract:
         mode = "EXTRACT"
+        if args.extract_corrupted:
+            corrupted_dir = args.corrupted_file_dir
+            corruption_type = os.path.basename(corrupted_dir).split("-")[1]
+            mode = f"EXTRACT-{corruption_type}"
     else:
         raise AssertionError("Mode should be specified")
 

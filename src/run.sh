@@ -1,16 +1,15 @@
 export CUDA_VISIBLE_DEVICES=0
 DTYPE="imdb"
-NAME="robust-infill-forward-kl-step=34000"
+NAME="keyword-child-dep"
 SPACYM="en_core_web_sm"
-CKPT="ckpt/forward-kl-longer/340000.pth"
+CKPT=""
 
 KR=0.06
 TOPK=4
 
-MASK_S="grammar"
+MASK_S="keyword_connected"
 MASK_ORDER_BY="dep"
-K_MASK="adjacent"
-
+K_MASK="child_dep"
 
 mkdir -p "results/ours/${DTYPE}/${NAME}"
 cp "$0" "results/ours/${DTYPE}/${NAME}"
@@ -30,7 +29,6 @@ python ./ours.py \
       --keyword_mask $K_MASK
 
 
-
 #python ./ours.py -do_watermark T -extract T -extract_corrupted F\
 #      --exp_name $NAME \
 #      --num_sample 100 \
@@ -44,7 +42,7 @@ python ./ours.py \
 
 
 SS_THRES=0.98
-ATTACKM="insertion substitution deletion"
+ATTACKM="deletion insertion substitution"
 PCT_RANGE="0.05"
 NUM_SENTENCE=1000
 
@@ -79,3 +77,5 @@ for seed in $SEED
     done
   done
 done
+
+

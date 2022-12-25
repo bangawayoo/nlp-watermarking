@@ -49,8 +49,8 @@ class Metric:
                 batch.append(text)
                 wm_batch.append(wm_text.strip())
             if (len(batch) == 64 or idx == len(watermarked)-1) and len(wm_batch) != 0:
-                wm_emb = self.sts_model['model_name'].encode(wm_batch, convert_to_tensor=True)
-                emb = self.sts_model['model_name'].encode(batch, convert_to_tensor=True)
+                wm_emb = self.sts_model[model_name].encode(wm_batch, convert_to_tensor=True)
+                emb = self.sts_model[model_name].encode(batch, convert_to_tensor=True)
                 cosine_scores = util.cos_sim(wm_emb, emb)
                 sr_score.extend(torch.diagonal(cosine_scores).tolist())
                 # wm_emb = self.awt_model.encode(wm_batch)

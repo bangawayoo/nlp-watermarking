@@ -61,7 +61,6 @@ class MaskSelector:
         return mask_idx, mask_word
 
     def keyword_connected(self, sen, keyword, ent_keyword, type="adjacent"):
-        max_mask_cnt = len(keyword)
         mask_word = []
         mask_idx = []
 
@@ -73,10 +72,27 @@ class MaskSelector:
                     if self._check_mask_candidate(mask_cand, mask_word, keyword, ent_keyword):
                         mask_word.append(mask_cand)
                         mask_idx.append(mask_cand.i)
+
         elif type == "child":
             mask_candidates = []
             for k in keyword:
                 mask_candidates = list(k.children) + [k.head]
+                mask_candidates = mask_candidates[:1]
+                for mask_cand in mask_candidates:
+                    if self._check_mask_candidate(mask_cand, mask_word, keyword, ent_keyword):
+                        mask_word.append(mask_cand)
+                        mask_idx.append(mask_cand.i)
+
+        elif type == "child_dep":
+            mask_candidates = []
+            for k in keyword:
+                connected_components = list(k.children) + [k.head]
+                dep_in_sentence = [t.dep_ for t in connected_components]
+                for d in self.dep_ordering:
+                    if d in dep_in_sentence:
+                        indices = [idx for idx, dep in enumerate(dep_in_sentence) if dep == d]
+                        for idx in indices:
+                            mask_candidates.append(connected_components[idx])
                 mask_candidates = mask_candidates[:1]
                 for mask_cand in mask_candidates:
                     if self._check_mask_candidate(mask_cand, mask_word, keyword, ent_keyword):

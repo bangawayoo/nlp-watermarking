@@ -144,12 +144,12 @@ def roc_stories(split='train', data_dir=None, with_titles=True, exclude_nonstand
   return stories
 
 def preprocess_txt(corpus):
-  corpus = [t.replace("\n", " ") for t in corpus]
-  corpus = [t.replace("\t", " ") for t in corpus]
-  CLEANR = re.compile('<.*?>')
-  corpus = [re.sub(CLEANR, '', c) for c in corpus if len(c) > 0]
-  corpus = [re.sub(r"\.+", "..", c) for c in corpus]
-  return corpus
+    corpus = [t.replace("\n", " ") for t in corpus]
+    corpus = [t.replace("\t", " ") for t in corpus]
+    CLEANR = re.compile('<.*?>')
+    corpus = [re.sub(CLEANR, '', c) for c in corpus if len(c) > 0]
+    corpus = [re.sub(r"\.+", "..", c) for c in corpus]
+    return corpus
 
 def change_str_to_int(listed_str):
     if len(listed_str) < 1:
