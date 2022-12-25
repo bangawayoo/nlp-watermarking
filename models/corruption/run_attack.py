@@ -17,7 +17,8 @@ if args.augment:
     assert len(args.path2result) > 0, "Save path is empty"
     path2result = args.path2result
     constraint_kwargs = {'use': args.ss_thres, 'num_sentence': args.num_sentence}
-    attacker = Attacker(attack_type, attack_percentage, path2embed, path2result, constraint_kwargs, augment_data_flag=True)
+    attacker = Attacker(attack_type, attack_percentage, path2embed, path2result, constraint_kwargs,
+                        augment_data_flag=True)
 
     infill_parser = WatermarkArgs()
     infill_args, _ = infill_parser.parse_known_args()

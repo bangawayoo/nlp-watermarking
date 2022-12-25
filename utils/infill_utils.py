@@ -1,16 +1,13 @@
 import copy
 import collections
 
-from accelerate import Accelerator
 import numpy as np
 import spacy
 import torch
 from transformers import DataCollatorForTokenClassification
 
-from config import WatermarkArgs
 from utils.infill_config import INFILL_TOKENIZER
-from models.mask import MaskSelector
-from models.kwd import KeywordExtractor
+
 
 tokenizer = INFILL_TOKENIZER
 
@@ -72,17 +69,12 @@ def collator_for_masking_random(feature):
 
 
 spacy_tokenizer = spacy.load('en_core_web_sm')
-mask_kwargs = {'method': 'grammar', "mask_order_by": "dep", "keyword_mask": 'adjacent'}
-mask_selector = MaskSelector(**mask_kwargs)
-keyword_module = KeywordExtractor(ratio=0.06)
 
-
-def collator_for_masking_ours(feature):
+def collator_for_masking_ours(feature, mask_selector, keyword_module):
     datacollator = DataCollatorForTokenClassification(tokenizer, padding=True,
                                                       max_length=tokenizer.model_max_length,
                                                       return_tensors="pt")
     corr_feature = []
-    wwm_probability = 0.05
 
     for feat in feature:
         word_ids = feat.pop("word_ids", None)

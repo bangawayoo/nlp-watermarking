@@ -1,20 +1,24 @@
 import copy
+from functools import partial
 import os
 import random
 
+from accelerate import Accelerator
 from datasets import Dataset
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
 from tqdm.auto import tqdm
-
-from accelerate import Accelerator
 from transformers import get_scheduler
-from config import WatermarkArgs, GenericArgs, InfillArgs
+
+from config import GenericArgs, InfillArgs, WatermarkArgs
+from models.mask import MaskSelector
+from models.kwd import KeywordExtractor
 from utils.infill_config import INFILL_TOKENIZER, INFILL_MODEL
 from utils.infill_utils import collator_for_masking_random, collator_for_masking_ours, tokenize_function
 from utils.logging import getLogger
+
 
 random.seed(1230)
 
@@ -22,8 +26,10 @@ random.seed(1230)
 def main():
     infill_parser = InfillArgs()
     generic_parser = GenericArgs()
+    wm_parser = WatermarkArgs()
     infill_args, _ = infill_parser.parse_known_args()
     generic_args, _ = generic_parser.parse_known_args()
+    wm_args, _ = wm_parser.parse_known_args()
     DEBUG_MODE = generic_args.debug_mode
     dtype = generic_args.dtype
 
@@ -61,6 +67,12 @@ def main():
     feature = feature.add_column("corr_input_ids", corr_feature['input_ids'])
     feature = feature.add_column("corr_attention_mask", corr_feature['attention_mask'])
 
+    mask_kwargs = {'method': wm_args.mask_select_method,
+                   "mask_order_by": wm_args.mask_order_by,
+                   "keyword_mask": wm_args.keyword_mask}
+    mask_selector = MaskSelector(**mask_kwargs)
+    keyword_module = KeywordExtractor(ratio=wm_args.keyword_ratio)
+    print(wm_args)
     # train model
     pt_dataset = feature.train_test_split(
         train_size=0.6,
@@ -83,13 +95,13 @@ def main():
         train_dataset,
         shuffle=False,
         batch_size=train_bs,
-        collate_fn=collator_for_masking_ours
+        collate_fn=partial(collator_for_masking_ours, mask_selector=mask_selector, keyword_module=keyword_module)
     )
     eval_dl = DataLoader(
         eval_dataset,
         shuffle=False,
         batch_size=train_bs*2,
-        collate_fn=collator_for_masking_ours
+        collate_fn=partial(collator_for_masking_ours, mask_selector=mask_selector, keyword_module=keyword_module)
     )
 
     # log data as texts
@@ -138,7 +150,6 @@ def main():
         model, fixed_model, optimizer, train_dl, eval_dl
     )
 
-    progress_bar = tqdm(range(num_training_steps))
     kl_criterion = torch.nn.KLDivLoss(reduction="batchmean")
     eval_freq = 5000
     log_freq = 1000
@@ -278,9 +289,8 @@ def main():
                 os.path.join(ckpt_dir, f"{step}/optim_state.pth")
             )
 
-
-    EVAL_INIT = True
-    if EVAL_INIT or infill_args.eval_only:
+    if infill_args.eval_init or infill_args.eval_only:
+        logger.info("Evaluating...")
         # Evaluation pre-training
         evaluate(eval_dl, 0, 0, save_ckpt=False)
         evaluate(train_dl, 0, 0, save_ckpt=False)
@@ -288,6 +298,8 @@ def main():
             exit()
 
     step = 0
+    progress_bar = tqdm(range(num_training_steps))
+
     for epoch in range(num_train_epochs):
         # Train metric
         tr_losses = {"mlm": [], "r_mlm": [], "acc": [], "ll": []}
