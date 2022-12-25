@@ -118,21 +118,22 @@ def collator_for_masking_ours(feature, mask_selector, keyword_module):
         # use mapping to find word -> token indices
         for word_id in word_indices:
             word_id = word_id
-            token_id = labels[min(mapping[word_id]):max(mapping[word_id]) + 1]
-            # build window of length p centering the masked word
-            p = 3
-            window_start = max(min(mapping[word_id]) - p, 0)
-            window_end = max(mapping[word_id]) + p
-            window = corr_input_ids[window_start:window_end + 1]
+            if len(mapping[word_id]) > 0:
+                token_id = labels[min(mapping[word_id]):max(mapping[word_id]) + 1]
+                # build window of length p centering the masked word
+                p = 3
+                window_start = max(min(mapping[word_id]) - p, 0)
+                window_end = max(mapping[word_id]) + p
+                window = corr_input_ids[window_start:window_end + 1]
 
-            corr_token_idx = np.where(np.isin(window, token_id))[0] + window_start
-            if len(corr_token_idx) == len(token_id):
-                for t_idx in corr_token_idx:
-                    corr_labels[t_idx] = copy.deepcopy(corr_input_ids[t_idx])
-                    corr_input_ids[t_idx] = tokenizer.mask_token_id
-                for idx in mapping[word_id]:
-                    new_labels[idx] = labels[idx]
-                    input_ids[idx] = tokenizer.mask_token_id
+                corr_token_idx = np.where(np.isin(window, token_id))[0] + window_start
+                if len(corr_token_idx) == len(token_id):
+                    for t_idx in corr_token_idx:
+                        corr_labels[t_idx] = copy.deepcopy(corr_input_ids[t_idx])
+                        corr_input_ids[t_idx] = tokenizer.mask_token_id
+                    for idx in mapping[word_id]:
+                        new_labels[idx] = labels[idx]
+                        input_ids[idx] = tokenizer.mask_token_id
         feat['input_ids'] = input_ids
         feat['labels'] = new_labels
         corr_feat['input_ids'] = corr_input_ids

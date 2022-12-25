@@ -156,7 +156,7 @@ def main():
     )
 
     kl_criterion = torch.nn.KLDivLoss(reduction="batchmean")
-    eval_freq = 5000
+    eval_freq = 20000
     log_freq = 1000
     kl_weight = 1.0
     topk = 32
