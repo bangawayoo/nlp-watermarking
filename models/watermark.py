@@ -17,7 +17,7 @@ from transformers import AutoTokenizer, AutoModelForMaskedLM
 import spacy
 
 from config import WatermarkArgs, riskset
-from utils.dataset_utils import preprocess2sentence, preprocess_txt
+from utils.dataset_utils import preprocess2sentence, preprocess_txt, get_dataset
 from utils.logging import getLogger
 from models.reward import NLIReward
 from models.kwd import KeywordExtractor
@@ -51,7 +51,6 @@ class InfillModel:
                 self.lm_head.load_state_dict(state_dict)
             else:
                 self.lm_head = self.lm_head.from_pretrained(args.model_ckpt).to(self.device)
-
 
         self.nli_reward = None if args.do_watermark else NLIReward(self.device)
         self.keyword_module = KeywordExtractor(ratio=self.args.keyword_ratio)
@@ -261,32 +260,22 @@ class InfillModel:
 
     def _init_dataset(self, dtype="imdb"):
         start_sample_idx = 0
-        if dtype == "imdb":
-            corpus = load_dataset(dtype)['train']['text']
-            test_corpus = load_dataset(dtype)['test']['text']
-        elif dtype == "wikitext":
-            corpus = load_dataset(dtype, 'wikitext-2-raw-v1')['train']['text']
-            test_corpus = load_dataset(dtype, 'wikitext-2-raw-v1')['test']['text']
-            corpus = [t for t in corpus if not t.strip().startswith("=") and len(t) > 0]
-            test_corpus = [t for t in test_corpus if not t.strip().startswith("=") and len(t) > 0]
-        else:
-            raise NotImplementedError
+        corpus, test_corpus, num_sample = get_dataset(dtype)
 
         if self.args.debug_mode:
-            train_num_sample = 10
-            test_num_sample = 10
-        else:
-            train_num_sample = len(corpus)
-            test_num_sample = 1000
+            num_sample['train'] = 10
+            num_sample['test'] = 10
 
         cover_texts = None
         if not self.args.do_watermark:
             cover_texts = preprocess_txt(corpus, dtype)
-            cover_texts = preprocess2sentence(cover_texts, dtype+"-train", start_sample_idx, train_num_sample,
+            cover_texts = preprocess2sentence(cover_texts, dtype+"-train", start_sample_idx,
+                                              num_sample['train'],
                                               spacy_model=self.args.spacy_model)
 
         test_cover_texts = preprocess_txt(test_corpus)
-        test_cover_texts = preprocess2sentence(test_cover_texts, dtype+"-test", start_sample_idx, test_num_sample,
+        test_cover_texts = preprocess2sentence(test_cover_texts, dtype+"-test", start_sample_idx,
+                                               num_sample['test'],
                                                spacy_model=self.args.spacy_model)
         return cover_texts, test_cover_texts
 
@@ -365,7 +354,6 @@ if __name__ == "__main__":
     nli_score = torch.mean(torch.tensor(model.metric['entail_score'])).item()
     num_subs = torch.mean(torch.tensor(model.metric['num_subs'], dtype=float)).item()
     logger.info(f"After training: {nli_score, num_subs}")
-
 
 
 

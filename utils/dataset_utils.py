@@ -150,14 +150,16 @@ def preprocess_txt(corpus):
     corpus = [t.replace("\t", " ") for t in corpus]
     CLEANR = re.compile('<.*?>')
     corpus = [re.sub(CLEANR, '', c) for c in corpus if len(c) > 0]
-    corpus = [re.sub(r"\.+", "..", c) for c in corpus]
+    corpus = [re.sub(r"\.+", ".", c) for c in corpus]
     return corpus
+
 
 def change_str_to_int(listed_str):
     if len(listed_str) < 1:
       return
     int_str = [int(elem) for elem in listed_str if elem.isdigit()]
     return int_str
+
 
 def get_result_txt(result_txt):
     results = []
@@ -188,13 +190,16 @@ def get_result_txt(result_txt):
             results.append(line)
     return results
 
+
 def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample=3000,
-                        population_size=1000, cutoff_q=(0.1, 0.9),
+                        population_size=1000, cutoff_q=(0.05, 0.95),
                         spacy_model="en_core_web_sm"):
     population_size = max(population_size, start_sample_idx + num_sample)
     id = f"{corpus_name}-{spacy_model}"
+    if corpus_name in ["wikitext", 'dracula']:
+        cutoff_q = (0.1, 0.9)
     if not os.path.isdir(CACHE_DIR):
-      os.makedirs(CACHE_DIR ,exist_ok=True)
+      os.makedirs(CACHE_DIR, exist_ok=True)
     file_dir = os.path.join(CACHE_DIR, id+".pkl")
 
     if os.path.isfile(file_dir):
@@ -224,23 +229,21 @@ def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample=3000,
     sentence_list = []
 
     for doc in docs:
-      lengths.extend([len(sent) for sent in doc.sents])
-      sentence_tokenized.append([sent for sent in doc.sents])
-      sentence_list.extend([(sent, len(sent)) for sent in doc.sents])
+      lengths.extend([len(sent) for sent in doc.sents if len(sent.text.strip()) > 0])
+      sentence_tokenized.append([sent for sent in doc.sents if len(sent.text.strip()) > 0])
+      sentence_list.extend([(sent, len(sent)) for sent in doc.sents if len(sent.text.strip()) > 0])
 
+    sentence_list.sort(key=lambda x: x[1])  # for debugging
     l_threshold = np.quantile(lengths, cutoff_q[0])
     # manually set upper threshold to 200 just to be safe when using Pretrained Tokenizers with maximum length=512.
     u_threshold = min(np.quantile(lengths, cutoff_q[1]), 200)
-
-    # sentence_list.sort(key=lambda x: x[1])
-    # breakpoint()
 
     filtered = []
     num_skipped = 0
     num_processed = 0
 
     for sample in sentence_tokenized[start_sample_idx: start_sample_idx+num_sample]:
-      sentences = [sen for sen in sample if len(sen) < u_threshold and len(sen) > l_threshold]
+      sentences = [sen for sen in sample if l_threshold < len(sen) < u_threshold]
       num_skipped += len(sample) - len(sentences)
       num_processed += len(sentences)
       filtered.append(sentences)
@@ -248,16 +251,34 @@ def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample=3000,
     logger.info(f"{num_processed} sentences processed, {num_skipped} sentences skipped")
     return filtered
 
-
 def get_dataset(dtype):
     if dtype == "imdb":
         corpus = load_dataset(dtype)['train']['text']
         test_corpus = load_dataset(dtype)['test']['text']
+        train_num_sample = len(corpus)
+        test_num_sample = 1000
     elif dtype == "wikitext":
         corpus = load_dataset(dtype, 'wikitext-2-raw-v1')['train']['text']
         test_corpus = load_dataset(dtype, 'wikitext-2-raw-v1')['test']['text']
-        corpus = [t for t in corpus if not t.strip().startswith("=") and len(t.strip()) > 0]
+        corpus = [t for t in corpus if not t.strip().startswith("=") and len(t.strip())> 0]
         test_corpus = [t for t in test_corpus if not t.strip().startswith("=") and len(t.strip()) > 0]
+        train_num_sample = len(corpus)
+        test_num_sample = 5000
+    elif dtype == "agnews":
+        corpus = load_dataset("ag_news")['train']['text']
+        test_corpus = load_dataset("ag_news")['test']['text']
+        train_num_sample = len(corpus)
+        test_num_sample = len(test_corpus)
+    elif dtype in ['dracula', 'wuthering_heights']:
+        with open(f"./data/{dtype}.txt", "r") as f:
+            text = f.readlines()
+        text_string = " ".join(text).replace("\n", "")
+        text_list = text_string.split("  ")
+        corpus = text_list[:len(text_list) // 2]
+        test_corpus = text_list[len(text_list) // 2:]
+        train_num_sample = len(corpus)
+        test_num_sample = len(test_corpus)
     else:
         raise NotImplementedError
-    return corpus, test_corpus
+
+    return corpus, test_corpus, {'train': train_num_sample, 'test': test_num_sample}

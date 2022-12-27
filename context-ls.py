@@ -115,20 +115,20 @@ if __name__ == "__main__":
     f = 1
     dtype = args.dtype
     start_sample_idx = 0
-    num_sample = args.num_sample
 
-    _, corpus = get_dataset(dtype)
+    _, corpus, num_sample2load = get_dataset(dtype)
     if not os.path.exists(dirname):
         os.makedirs(dirname, exist_ok=True)
     result_dir = os.path.join(dirname, "watermarked.txt")
 
     cover_texts = preprocess_txt(corpus)
-    cover_texts = preprocess2sentence(cover_texts, dtype+"-test", start_sample_idx, spacy_model=args.spacy_model)
+    cover_texts = preprocess2sentence(cover_texts, dtype+"-test", start_sample_idx, num_sample2load['test'],
+                                      spacy_model=args.spacy_model)
 
     num_sentence = 0
     for c_idx, sentences in enumerate(cover_texts):
         num_sentence += len(sentences)
-        if num_sentence >= num_sample:
+        if num_sentence >= args.num_sample:
             break
     cover_texts = cover_texts[:c_idx + 1]
 
@@ -180,7 +180,7 @@ if __name__ == "__main__":
         logger.info(f"nli score: {sum(nli_score) / len(nli_score):.3f}")
 
         with open(os.path.join(dirname, "embed-metrics.txt"), "a") as wr:
-            wr.write(f"num.sample={num_sample}\t bpw={bit_count / word_count}\t "
+            wr.write(f"num.sample={args.num_sample}\t bpw={bit_count / word_count}\t "
                      f"ss={ss_scores[0]}\t ss={ss_scores[1]}\t"
                      f"nli={sum(nli_score) / len(nli_score)}\n")
 
