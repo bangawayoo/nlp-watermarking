@@ -1,6 +1,7 @@
 import copy
 from functools import partial
 import os
+os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 import random
 
 from accelerate import Accelerator
@@ -72,7 +73,6 @@ def main():
                    "keyword_mask": wm_args.keyword_mask}
     mask_selector = MaskSelector(**mask_kwargs)
     keyword_module = KeywordExtractor(ratio=wm_args.keyword_ratio)
-    print(wm_args)
     # train model
     pt_dataset = feature.train_test_split(
         train_size=0.6,
@@ -90,7 +90,8 @@ def main():
     train_bs = 64 if not DEBUG_MODE else 8
 
     if infill_args.masking_type == "random":
-        collate_func = collator_for_masking_random
+        masking_p = infill_args.masking_p
+        collate_func = partial(collator_for_masking_random, masking_p=masking_p)
     else:
         collate_func = partial(collator_for_masking_ours, mask_selector=mask_selector, keyword_module=keyword_module)
 
@@ -141,11 +142,9 @@ def main():
     # load from checkpoint
     if infill_args.model_ckpt:
         model.from_pretrained(infill_args.model_ckpt)
-
         optim_scheduler_states = torch.load(os.path.join(infill_args.model_ckpt, "/optim_state.pth"))
 
         logger.info("Loading optimizer states from checkpoint dir ..")
-        accelerator.scaler.load_state_dict(optim_scheduler_states["scaler"])
         optimizer.load_state_dict(optim_scheduler_states["optimizer"])
         completed_epochs = optim_scheduler_states["epoch"]
         completed_steps = optim_scheduler_states["steps"]
@@ -165,7 +164,7 @@ def main():
     optimize_cls_token = False
     mse_criterion = torch.nn.MSELoss()
     logit_loss_w = 1.0
-    kl_type = "reverse"
+    kl_type = infill_args.kl_type
 
     ckpt_dir = f"./ckpt/{generic_args.exp_name}/"
     if not os.path.exists(ckpt_dir):
@@ -289,7 +288,6 @@ def main():
                     "steps": step,
                     "optimizer": optimizer.state_dict(),
                     "scheduler": lr_scheduler.state_dict(),
-                    "scaler": accelerator.scaler.state_dict(),
                 },
                 os.path.join(ckpt_dir, f"{step}/optim_state.pth")
             )
@@ -384,8 +382,7 @@ def main():
             "epoch": epoch,
             "steps": step,
             "optimizer": optimizer.state_dict(),
-            "scheduler": lr_scheduler.state_dict(),
-            "scaler": accelerator.scaler.state_dict(),
+            "scheduler": lr_scheduler.state_dict()
         },
         os.path.join(ckpt_dir, "last/optim_state.pth")
     )

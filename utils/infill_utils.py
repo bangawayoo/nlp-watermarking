@@ -11,12 +11,11 @@ from utils.infill_config import INFILL_TOKENIZER
 
 tokenizer = INFILL_TOKENIZER
 
-def collator_for_masking_random(feature):
+def collator_for_masking_random(feature, masking_p):
     datacollator = DataCollatorForTokenClassification(tokenizer, padding=True,
                                                       max_length=tokenizer.model_max_length,
                                                       return_tensors="pt")
     corr_feature = []
-    wwm_probability = 0.05
 
     for feat in feature:
         word_ids = feat.pop("word_ids", None)
@@ -34,7 +33,7 @@ def collator_for_masking_random(feature):
                 mapping[current_word_index].append(idx)
 
         # Randomly mask words
-        mask = np.random.binomial(1, wwm_probability, (len(mapping),))
+        mask = np.random.binomial(1, masking_p, (len(mapping),))
         input_ids = feat["input_ids"]
         corr_feat['attention_mask'] = feat.pop("corr_attention_mask", None)
         corr_input_ids = feat.pop("corr_input_ids", None)

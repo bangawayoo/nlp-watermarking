@@ -10,7 +10,7 @@ from config import GenericArgs
 from utils.misc import compute_ber, riskset, stop
 from utils.contextls_utils import synchronicity_test, substitutability_test, tokenizer, riskset, stop
 from utils.logging import getLogger
-from utils.dataset_utils import preprocess_txt, preprocess2sentence, get_result_txt
+from utils.dataset_utils import preprocess_txt, preprocess2sentence, get_result_txt, get_dataset
 from utils.metric import Metric
 
 random.seed(1230)
@@ -116,7 +116,8 @@ if __name__ == "__main__":
     dtype = args.dtype
     start_sample_idx = 0
     num_sample = args.num_sample
-    corpus = load_dataset("imdb")['test']['text']
+
+    _, corpus = get_dataset(dtype)
     if not os.path.exists(dirname):
         os.makedirs(dirname, exist_ok=True)
     result_dir = os.path.join(dirname, "watermarked.txt")

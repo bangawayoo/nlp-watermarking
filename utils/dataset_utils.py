@@ -4,6 +4,8 @@ import pickle
 import numpy as np
 import random
 import re
+
+from datasets import load_dataset
 import spacy
 from tqdm import tqdm
 from utils.logging import getLogger
@@ -186,8 +188,8 @@ def get_result_txt(result_txt):
             results.append(line)
     return results
 
-def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample=1000,
-                        population_size=1000, cutoff_q=(0.05, 0.95),
+def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample=3000,
+                        population_size=1000, cutoff_q=(0.1, 0.9),
                         spacy_model="en_core_web_sm"):
     population_size = max(population_size, start_sample_idx + num_sample)
     id = f"{corpus_name}-{spacy_model}"
@@ -219,14 +221,19 @@ def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample=1000,
 
     lengths = []
     sentence_tokenized = []
+    sentence_list = []
 
     for doc in docs:
       lengths.extend([len(sent) for sent in doc.sents])
       sentence_tokenized.append([sent for sent in doc.sents])
+      sentence_list.extend([(sent, len(sent)) for sent in doc.sents])
 
     l_threshold = np.quantile(lengths, cutoff_q[0])
     # manually set upper threshold to 200 just to be safe when using Pretrained Tokenizers with maximum length=512.
     u_threshold = min(np.quantile(lengths, cutoff_q[1]), 200)
+
+    # sentence_list.sort(key=lambda x: x[1])
+    # breakpoint()
 
     filtered = []
     num_skipped = 0
@@ -242,3 +249,15 @@ def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample=1000,
     return filtered
 
 
+def get_dataset(dtype):
+    if dtype == "imdb":
+        corpus = load_dataset(dtype)['train']['text']
+        test_corpus = load_dataset(dtype)['test']['text']
+    elif dtype == "wikitext":
+        corpus = load_dataset(dtype, 'wikitext-2-raw-v1')['train']['text']
+        test_corpus = load_dataset(dtype, 'wikitext-2-raw-v1')['test']['text']
+        corpus = [t for t in corpus if not t.strip().startswith("=") and len(t.strip()) > 0]
+        test_corpus = [t for t in test_corpus if not t.strip().startswith("=") and len(t.strip()) > 0]
+    else:
+        raise NotImplementedError
+    return corpus, test_corpus

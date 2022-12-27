@@ -86,6 +86,8 @@ def InfillArgs():
 
     parser.add_argument("--num_epochs", type=int, default=10)
     parser.add_argument("--masking_type", type=str, default="ours")
+    parser.add_argument("--masking_p", type=float, default=0.15)
+    parser.add_argument("--kl_type", type=str, default="forward")
     parser.add_argument("--dtype", type=str, default='imdb')
     parser.add_argument("--spacy_model", type=str, default="en_core_web_sm")
 

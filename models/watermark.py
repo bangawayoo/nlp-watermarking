@@ -50,7 +50,8 @@ class InfillModel:
                 state_dict = torch.load(args.model_ckpt, map_location=self.device)["model"]
                 self.lm_head.load_state_dict(state_dict)
             else:
-                self.lm_head.from_pretrained(args.model_ckpt)
+                self.lm_head = self.lm_head.from_pretrained(args.model_ckpt).to(self.device)
+
 
         self.nli_reward = None if args.do_watermark else NLIReward(self.device)
         self.keyword_module = KeywordExtractor(ratio=self.args.keyword_ratio)
@@ -59,12 +60,14 @@ class InfillModel:
             self.logger.info(f"and mask selection by [{args.keyword_mask}]")
         else:
             self.logger.info(f"and ordering by [{args.mask_order_by}]")
+
+        self.logger.info(args)
         self.mask_selector = MaskSelector(method=args.mask_select_method,
                                           mask_order_by=args.mask_order_by,
                                           keyword_mask=args.keyword_mask)
         self.nlp = spacy.load(args.spacy_model)
 
-        self.metric = {'entail_score': [], 'num_subs': [], 'train_entail_score':[]}
+        self.metric = {'entail_score': [], 'num_subs': [], 'train_entail_score': []}
         self.best_metric = {'entail_score': 0}
 
 
