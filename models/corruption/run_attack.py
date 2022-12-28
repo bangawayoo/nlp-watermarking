@@ -2,7 +2,7 @@ from datasets import load_dataset
 
 from module import Attacker
 from config import CorruptionArgs, WatermarkArgs
-from utils.dataset_utils import preprocess2sentence, preprocess_txt
+from utils.dataset_utils import preprocess2sentence, preprocess_txt, get_dataset
 
 parser = CorruptionArgs()
 args, _ = parser.parse_known_args()
@@ -18,16 +18,16 @@ if args.augment:
     path2result = args.path2result
     constraint_kwargs = {'use': args.ss_thres, 'num_sentence': args.num_sentence}
     attacker = Attacker(attack_type, attack_percentage, path2embed, path2result, constraint_kwargs,
-                        augment_data_flag=True)
+                        augment_data_flag=True, num_corr_per_sentence=args.num_corr_per_sentence, args=args)
 
-    infill_parser = WatermarkArgs()
-    infill_args, _ = infill_parser.parse_known_args()
+    wm_parser = WatermarkArgs()
+    wm_args, _ = wm_parser.parse_known_args()
 
-    dtype = infill_args.data_type
-    corpus = load_dataset(dtype)['train']['text']
+    dtype = wm_args.dtype
+    corpus, _, numsample2use = get_dataset(dtype)
     cover_texts = preprocess_txt(corpus)
-    cover_texts = preprocess2sentence(cover_texts, dtype + "-train", 0, 25000,
-                                      spacy_model=infill_args.spacy_model)
+    cover_texts = preprocess2sentence(cover_texts, dtype + "-train", 0, numsample2use['train'],
+                                      spacy_model=wm_args.spacy_model)
     attacker.augment_data(cover_texts)
 
 else:

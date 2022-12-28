@@ -70,6 +70,7 @@ def CorruptionArgs():
     parser.add_argument("--path2embed", type=str, default="imdb")
     parser.add_argument("--path2result", type=str, default="")
     parser.add_argument("--num_sentence", type=int, default=0)
+    parser.add_argument("--augment_type", type=str, default="random", choices=['random', 'all'])
     parser.add_argument("--num_corr_per_sentence", type=int, default=1)
 
     return parser

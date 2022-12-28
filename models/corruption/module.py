@@ -22,7 +22,8 @@ from utils.logging import getLogger
 
 class Attacker:
     def __init__(self, attack_type, attack_percentage, path2txt, path2result, constraint_kwargs,
-                 augment_data_flag=False, num_corr_per_sentence=1):
+                 augment_data_flag=False, num_corr_per_sentence=1, args=None):
+        self.args = args
         log_dir = os.path.dirname(path2txt) if not augment_data_flag else "./data"
         self.logger = getLogger(f"CORRUPTION-{attack_type}",
                                         dir_=log_dir)
@@ -39,7 +40,7 @@ class Attacker:
         self.logger.info(f"Parameters are {constraint_kwargs}")
         self.attack_type = attack_type
         self.num_sentence = constraint_kwargs.get('num_sentence', None)
-        if isinstance(self.num_sentence, int):
+        if isinstance(self.num_sentence, int) and self.num_sentence > 0:
             self.num_sentence *= num_corr_per_sentence
 
         use_thres = constraint_kwargs.get("use", 0)
@@ -152,17 +153,23 @@ class Attacker:
         for c_idx, sentences in enumerate(cover_texts):
             self.logger.info(f"{c_idx}")
             for sen in sentences:
-                random_augment = random.choice(self.augmenter_choices)
-                corrupted_sentences = random_augment.augment(sen.text)
-                if corrupted_sentences:
-                    data2write = corrupted_sentences
-                    data2write.insert(0, sen.text)
-                    self.wr.write("[sep] ".join(data2write) + "\n")
-                    attacked_cnt += 1
+
+                if self.args.augment_type == "random":
+                    augmenters = [random.choice(self.augmenter_choices)]
+                elif self.args.augment_type == "all":
+                    augmenters = self.augmenter_choices
+
+                for aug in augmenters:
+                    corrupted_sentences = aug.augment(sen.text)
+                    if corrupted_sentences:
+                        data2write = corrupted_sentences
+                        data2write.insert(0, sen.text)
+                        self.wr.write("[sep] ".join(data2write) + "\n")
+                        attacked_cnt += 1
                 progress_bar.update(1)
-            if self.num_sentence and attacked_cnt >= self.num_sentence:
-                self.logger.info(f"Done augmenting {attacked_cnt} sentences")
-                break
+                if self.num_sentence and attacked_cnt >= self.num_sentence:
+                    self.logger.info(f"Done augmenting {attacked_cnt} sentences")
+                    break
 
         self.wr.close()
 

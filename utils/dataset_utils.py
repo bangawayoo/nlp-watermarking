@@ -243,10 +243,10 @@ def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample=3000,
     num_processed = 0
 
     for sample in sentence_tokenized[start_sample_idx: start_sample_idx+num_sample]:
-      sentences = [sen for sen in sample if l_threshold < len(sen) < u_threshold]
-      num_skipped += len(sample) - len(sentences)
-      num_processed += len(sentences)
-      filtered.append(sentences)
+        sentences = [sen for sen in sample if l_threshold < len(sen) < u_threshold]
+        num_skipped += len(sample) - len(sentences)
+        num_processed += len(sentences)
+        filtered.append(sentences)
 
     logger.info(f"{num_processed} sentences processed, {num_skipped} sentences skipped")
     return filtered
@@ -263,7 +263,7 @@ def get_dataset(dtype):
         corpus = [t for t in corpus if not t.strip().startswith("=") and len(t.strip())> 0]
         test_corpus = [t for t in test_corpus if not t.strip().startswith("=") and len(t.strip()) > 0]
         train_num_sample = len(corpus)
-        test_num_sample = 5000
+        test_num_sample = len(corpus)
     elif dtype == "agnews":
         corpus = load_dataset("ag_news")['train']['text']
         test_corpus = load_dataset("ag_news")['test']['text']
@@ -274,8 +274,9 @@ def get_dataset(dtype):
             text = f.readlines()
         text_string = " ".join(text).replace("\n", "")
         text_list = text_string.split("  ")
-        corpus = text_list[:len(text_list) // 2]
-        test_corpus = text_list[len(text_list) // 2:]
+        split_point = int(0.4 * len(text_list))
+        corpus = text_list[:split_point]
+        test_corpus = text_list[split_point:]
         train_num_sample = len(corpus)
         test_num_sample = len(test_corpus)
     else:

@@ -1,10 +1,10 @@
 export CUDA_VISIBLE_DEVICES=0
-DTYPE="imdb"
-NAME="robust-mask=keyword-child-dep"
+DTYPE="dracula"
+NAME="keyword-child-dep"
 SPACYM="en_core_web_sm"
-CKPT="ckpt/mask=keyword-child-dep/last"
+CKPT=""
 
-KR=0.06
+KR=0.04
 TOPK=4
 
 MASK_S="keyword_connected"
@@ -41,41 +41,41 @@ python ./ours.py \
 #      --keyword_mask $K_MASK
 
 #
-SS_THRES=0.98
-ATTACKM="deletion insertion substitution"
-PCT_RANGE="0.025"
-NUM_SENTENCE=1000
-
-SEED=$(seq 0 0)
-for seed in $SEED
-  do
-  for apct in $PCT_RANGE
-  do
-  for attm in $ATTACKM
-    do
-      if [ $attm = "deletion" ]
-      then
-        ncps=1
-      else
-        ncps=5
-      fi
-      CORRUPTION_NAME="watermarked"
-      python ./models/corruption/run_attack.py --target_method "ours"\
-                                               --attack_pct $apct\
-                                               --path2embed "results/ours/${DTYPE}/${NAME}/watermarked.txt"\
-                                               --attack_type $attm --num_sentence $NUM_SENTENCE --ss_thres $SS_THRES \
-                                               --num_corr_per_sentence $ncps
-
-      python ./ours.py -do_watermark T -extract T -extract_corrupted T --dtype $DTYPE \
-                       --corrupted_file_dir "./results/ours/${DTYPE}/${NAME}/watermarked-${attm}=${apct}.txt"\
-                       --exp_name $NAME --spacy_model $SPACYM --model_ckpt $CKPT \
-                      --keyword_ratio $KR \
-                      --topk $TOPK \
-                      --mask_select_method $MASK_S \
-                      --mask_order_by $MASK_ORDER_BY \
-                      --keyword_mask $K_MASK
-
-    done
-  done
-done
+#SS_THRES=0.98
+#ATTACKM="deletion insertion substitution"
+#PCT_RANGE="0.025"
+#NUM_SENTENCE=1000
+#
+#SEED=$(seq 0 0)
+#for seed in $SEED
+#  do
+#  for apct in $PCT_RANGE
+#  do
+#  for attm in $ATTACKM
+#    do
+#      if [ $attm = "deletion" ]
+#      then
+#        ncps=1
+#      else
+#        ncps=5
+#      fi
+#      CORRUPTION_NAME="watermarked"
+#      python ./models/corruption/run_attack.py --target_method "ours"\
+#                                               --attack_pct $apct\
+#                                               --path2embed "results/ours/${DTYPE}/${NAME}/watermarked.txt"\
+#                                               --attack_type $attm --num_sentence $NUM_SENTENCE --ss_thres $SS_THRES \
+#                                               --num_corr_per_sentence $ncps
+#
+#      python ./ours.py -do_watermark T -extract T -extract_corrupted T --dtype $DTYPE \
+#                       --corrupted_file_dir "./results/ours/${DTYPE}/${NAME}/watermarked-${attm}=${apct}.txt"\
+#                       --exp_name $NAME --spacy_model $SPACYM --model_ckpt $CKPT \
+#                      --keyword_ratio $KR \
+#                      --topk $TOPK \
+#                      --mask_select_method $MASK_S \
+#                      --mask_order_by $MASK_ORDER_BY \
+#                      --keyword_mask $K_MASK
+#
+#    done
+#  done
+#done
 
