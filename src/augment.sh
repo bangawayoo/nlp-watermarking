@@ -1,6 +1,6 @@
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=1
 
-DTYPE="dracula"
+DTYPE="wuthering_heights"
 APCT="0.1"
 NUMCORR=10
 AUGMENT_TYPE="all"

@@ -148,6 +148,7 @@ def roc_stories(split='train', data_dir=None, with_titles=True, exclude_nonstand
 def preprocess_txt(corpus):
     corpus = [t.replace("\n", " ") for t in corpus]
     corpus = [t.replace("\t", " ") for t in corpus]
+    # html tag
     CLEANR = re.compile('<.*?>')
     corpus = [re.sub(CLEANR, '', c) for c in corpus if len(c) > 0]
     corpus = [re.sub(r"\.+", ".", c) for c in corpus]
@@ -229,9 +230,9 @@ def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample=3000,
     sentence_list = []
 
     for doc in docs:
-      lengths.extend([len(sent) for sent in doc.sents if len(sent.text.strip()) > 0])
-      sentence_tokenized.append([sent for sent in doc.sents if len(sent.text.strip()) > 0])
-      sentence_list.extend([(sent, len(sent)) for sent in doc.sents if len(sent.text.strip()) > 0])
+        lengths.extend([len(sent) for sent in doc.sents if len(sent.text.strip()) > 0])
+        sentence_tokenized.append([sent for sent in doc.sents if len(sent.text.strip()) > 0])
+        sentence_list.extend([(sent, len(sent)) for sent in doc.sents if len(sent.text.strip()) > 0])
 
     sentence_list.sort(key=lambda x: x[1])  # for debugging
     l_threshold = np.quantile(lengths, cutoff_q[0])

@@ -165,7 +165,8 @@ if __name__ == "__main__":
                 keys_str = ", ".join(keys)
                 wr.write(f"{c_idx}\t{sen_idx}\t{s_idset_str}\t{s_indices_str}\t"
                          f"{watermarked_text}\t{keys_str}\t{message_str}\n")
-            logger.info(f"Sample {c_idx} bpw={bit_count / word_count:.3f}")
+            if word_count > 0:
+                logger.info(f"Sample {c_idx} bpw={bit_count / word_count:.3f}")
 
         wr.close()
 

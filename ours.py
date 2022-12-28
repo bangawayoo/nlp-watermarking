@@ -85,10 +85,9 @@ if generic_args.embed:
     wr = open(result_dir, "w")
     for c_idx, sentences in enumerate(cover_texts):
         for s_idx, sen in enumerate(sentences):
-            sen = spacy_tokenizer(sen.text)
+            sen = spacy_tokenizer(sen.text.strip())
             all_keywords, entity_keywords = model.keyword_module.extract_keyword([sen])
-            # sen_text = sen.text
-            logger.debug(f"{c_idx} {s_idx}")
+            logger.info(f"{c_idx} {s_idx}")
             keyword = all_keywords[0]
             ent_keyword = entity_keywords[0]
     
@@ -107,12 +106,6 @@ if generic_args.embed:
                         wm_text[m_idx] = re.sub(r"\S+", model.tokenizer.decode(c_id), wm_text[m_idx])
 
                     wm_tokenized = spacy_tokenizer("".join(wm_text).strip())
-                    # only use the same pos
-                    # for m_idx, m_word in zip(mask_idx, mask_word):
-                    #     new_pos = [t for t in wm_tokenized][m_idx].pos_
-                    #     pos = m_word.pos_
-                    #     if new_pos != pos:
-                    #         continue
 
                     # extract keyword of watermark
                     wm_keywords, wm_ent_keywords = model.keyword_module.extract_keyword([wm_tokenized])
@@ -125,7 +118,7 @@ if generic_args.embed:
                         kwd_match_cnt += 1
 
                     # checking whether the watermark can be embedded without the assumption of corruption
-                    mask_match_flag = set(wm_mask_idx) == set(mask_idx)
+                    mask_match_flag = len(wm_mask) and set(wm_mask_idx) == set(mask_idx)
                     if mask_match_flag:
                         valid_watermarks.append(wm_tokenized.text)
                         mask_match_cnt += 1
@@ -238,16 +231,12 @@ if generic_args.extract:
             break
         for wm_text in wm_texts:
             sen = spacy_tokenizer(wm_text.strip())
-
             all_keywords, entity_keywords = model.keyword_module.extract_keyword([sen])
             # for sanity check, one use the original (uncorrupted) texts
             sen_ = spacy_tokenizer(clean_wm_text.strip())
             all_keywords_, entity_keywords_ = model.keyword_module.extract_keyword([sen_])
 
             logger.info(f"{c_idx} {sen_idx}")
-            # if attack has failed or no watermarked is embedded, skip
-            if corrupted_flag and wm_text == "skipped":
-                continue
 
             num_corrupted_sen += 1
             # extracting states for corrupted

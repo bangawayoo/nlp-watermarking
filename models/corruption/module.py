@@ -166,11 +166,10 @@ class Attacker:
                         data2write.insert(0, sen.text)
                         self.wr.write("[sep] ".join(data2write) + "\n")
                         attacked_cnt += 1
-                progress_bar.update(1)
                 if self.num_sentence and attacked_cnt >= self.num_sentence:
                     self.logger.info(f"Done augmenting {attacked_cnt} sentences")
                     break
-
+            progress_bar.update(1)
         self.wr.close()
 
 
