@@ -1,15 +1,14 @@
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=3
 
 NAME="sm_spacy"
 SPACYM="en_core_web_sm"
-DTYPE="wikitext"
+DTYPE="wuthering_heights"
 
 mkdir -p "results/context-ls/${DTYPE}/${NAME}"
 cp "$0" "results/context-ls/${DTYPE}/${NAME}"
 
-#python context-ls.py -embed T --num_sample 1000 --exp_name $NAME --spacy_model $SPACYM --dtype $DTYPE
+python context-ls.py -embed T --num_sample 1000 --exp_name $NAME --spacy_model $SPACYM --dtype $DTYPE
 
-#
 SS_THRES=0.98
 ATTACKM="insertion substitution"
 PCT_RANGE="0.025"

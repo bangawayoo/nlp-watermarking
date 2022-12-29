@@ -1,8 +1,8 @@
-export CUDA_VISIBLE_DEVICES=1
-DTYPE="wuthering_heights"
-NAME="keyword-child-dep"
+export CUDA_VISIBLE_DEVICES=2
+DTYPE="imdb"
+NAME="kcd-robust-mask=random-forward_kl"
 SPACYM="en_core_web_sm"
-CKPT=""
+CKPT="ckpt/mask=random-forward-p=15/last"
 
 KR=0.06
 TOPK=4
@@ -35,10 +35,10 @@ then
 fi
 
 
-
-EXTRACT="F"
+EXTRACT="T"
 if [ $EXTRACT = "T" ]
 then
+  NSAMPLE=5000
   python ./ours.py -do_watermark T -extract T -extract_corrupted F\
         --exp_name $NAME \
         --dtype $DTYPE \
@@ -53,12 +53,12 @@ then
 fi
 
 
-CORRUPT="F"
+CORRUPT="T"
 if [ $CORRUPT = "T" ]
 then
   SS_THRES=0.98
   ATTACKM="deletion insertion substitution"
-  PCT_RANGE="0.025"
+  PCT_RANGE="0.025 0.05"
   NUM_SENTENCE=1000
 
   SEED=$(seq 0 0)

@@ -1,16 +1,15 @@
 #export CUDA_VISIBLE_DEVICES=1
 DEBUG="False"
-EXP_NAME="mask=random-forward-p=15"
-DATA_TYPE="imdb"
+EXP_NAME="mask=ours"
+DATA_TYPE="dracula"
 EPOCH=200
 MODEL_CKPT=""
 
-KL_TYPE="forward"
-
-MASKING_TYPE="random"
+KL_TYPE="reverse"
+MASKING_TYPE="ours"
 MASKING_P=0.15
 
-KR=0.06
+KR=0.05
 MASK_S="grammar"
 MASK_ORDER_BY="dep"
 K_MASK="child_dep"
