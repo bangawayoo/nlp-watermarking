@@ -80,7 +80,7 @@ def main(cover_text, f, extracting=False):
         latest_embed_index = index
         index = index + f + 1
 
-    return substituted_idset, substituted_indices, watermarking_wordset, encoded_text, message
+    return substituted_idset, substituted_indices, watermarking_wordset, encoded_text['input_ids'], message
 
 
 
@@ -160,7 +160,7 @@ if __name__ == "__main__":
                 s_indices_str = " ".join(str(x) for x in substituted_indices)
                 message_str = [str(m) for m in message]
                 message_str = " ".join(message_str) if len(message_str) else ""
-                watermarked_text = tokenizer.decode(encoded_text['input_ids'])
+                watermarked_text = tokenizer.decode(encoded_text)
                 keys = [tokenizer.decode(s_id) for s_id in substituted_idset]
                 keys_str = ", ".join(keys)
                 wr.write(f"{c_idx}\t{sen_idx}\t{s_idset_str}\t{s_indices_str}\t"
@@ -203,7 +203,9 @@ if __name__ == "__main__":
         num_corrupted_sen = 0
         sample_level_bit = {'gt':[], 'extracted':[]}
         bit_error_agg = {}
-
+        midx_match_cnt = 0
+        mword_match_cnt = 0
+        infill_match_cnt = 0
         prev_c_idx = 0
         for idx, (c_idx, sen_idx, sub_idset, sub_idx, clean_wm_sen, key, msg) in enumerate(clean_watermarked):
             if prev_c_idx != c_idx:
@@ -220,8 +222,12 @@ if __name__ == "__main__":
             original_sentences = cover_texts[c_idx]
             sen = original_sentences[sen_idx]
 
+            clean_encoded = tokenizer(clean_wm_sen.strip(), add_special_tokens=False, truncation=True,
+                                      max_length=tokenizer.model_max_length// 2 - 2)['input_ids']
+
             wm_texts = corrupted_watermarked[idx] if corrupted_flag else [clean_wm_sen.strip()]
             for wm_text in wm_texts:
+                wm_text = wm_text.strip()
                 if corrupted_flag and wm_text == "skipped":
                     continue
 
@@ -229,6 +235,23 @@ if __name__ == "__main__":
                 extracted_idset, extracted_indices, watermarking_wordset, encoded_text, extracted_msg = \
                     main(wm_text, f, extracting=True)
                 extracted_key = [tokenizer.decode(s_id) for s_id in extracted_idset]
+
+                midx_match_flag = set(extracted_indices) == set(sub_idx)
+                if midx_match_flag:
+                    midx_match_cnt += 1
+
+                mword_match_flag = set([encoded_text[idx] for idx in extracted_indices]) == \
+                                   set([clean_encoded[idx] for idx in sub_idx])
+                if mword_match_flag:
+                    mword_match_cnt += 1
+
+                infill_match_list = []
+                for a, b in zip(sub_idset, extracted_idset):
+                    infill_match_flag = a==b
+                    infill_match_list.append(infill_match_flag)
+                if all(infill_match_list):
+                    infill_match_cnt += 1
+
                 sample_level_bit['extracted'].extend(extracted_msg)
                 sample_level_bit['gt'].extend(msg)
                 error_cnt, cnt = compute_ber(msg, extracted_msg)
@@ -246,6 +269,10 @@ if __name__ == "__main__":
         # logger.info(f"Corruption Rate: {num_corrupted_sen / len(clean_watermarked):3f}")
         logger.info(f"Sentence BER: {bit_error_agg['sentence_err_cnt']}/{bit_error_agg['sentence_cnt']}="
                     f"{bit_error_agg['sentence_err_cnt'] / bit_error_agg['sentence_cnt']:.3f}")
+
+        logger.info(f"mask infill match rate: {infill_match_cnt / num_corrupted_sen:.3f}")
+        logger.info(f"mask index match rate: {midx_match_cnt / num_corrupted_sen:.3f}")
+        logger.info(f"mask word match rate: {mword_match_cnt / num_corrupted_sen:.3f}")
 
         if corrupted_flag:
             with open(os.path.join(dirname, "ber.txt"), "a") as wr:

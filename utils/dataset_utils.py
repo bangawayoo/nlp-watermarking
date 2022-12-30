@@ -197,7 +197,7 @@ def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample=3000,
                         spacy_model="en_core_web_sm"):
     population_size = max(population_size, start_sample_idx + num_sample)
     id = f"{corpus_name}-{spacy_model}"
-    if corpus_name in ["wikitext", 'dracula']:
+    if corpus_name in ['dracula']:
         cutoff_q = (0.1, 0.9)
     if not os.path.isdir(CACHE_DIR):
       os.makedirs(CACHE_DIR, exist_ok=True)
@@ -249,6 +249,13 @@ def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample=3000,
         num_processed += len(sentences)
         filtered.append(sentences)
 
+    # post_processed_length = []
+    # for sentences in filtered:
+    #     post_processed_length.extend([len(sen) for sen in sentences])
+    #
+    # print([np.quantile(post_processed_length, q) for q in [0.1, 0.25, 0.5, 0.75, 0.9]])
+    # print(min(post_processed_length))
+    # print(max(post_processed_length))
     logger.info(f"{num_processed} sentences processed, {num_skipped} sentences skipped")
     return filtered
 

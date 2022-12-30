@@ -1,25 +1,25 @@
 #export CUDA_VISIBLE_DEVICES=1
 DEBUG="False"
-EXP_NAME="mask=ours"
-DATA_TYPE="dracula"
-EPOCH=200
+EXP_NAME="only_mlm"
+DATA_TYPE="imdb"
+EPOCH=100
 MODEL_CKPT=""
 
 KL_TYPE="reverse"
 MASKING_TYPE="ours"
 MASKING_P=0.15
 
-KR=0.05
+KR=0.06
 MASK_S="grammar"
 MASK_ORDER_BY="dep"
 K_MASK="child_dep"
 
-mkdir -p "./ckpt/${EXP_NAME}"
-cp "$0" "./ckpt/${EXP_NAME}"
+mkdir -p "./ckpt/${DATA_TYPE}/${EXP_NAME}"
+cp "$0" "./ckpt/${DATA_TYPE}/${EXP_NAME}"
 
-CUDA_VISIBLE_DEVICES="3" accelerate launch --mixed_precision bf16 \
-  train_infill.py --exp_name $EXP_NAME \
-                  --data_type $DATA_TYPE \
+CUDA_VISIBLE_DEVICES="1" accelerate launch --mixed_precision bf16 \
+  train_infill_ablation.py --exp_name $EXP_NAME \
+                  --dtype $DATA_TYPE \
                   --num_epochs $EPOCH \
                   --mask_select_method $MASK_S \
                   --mask_order_by $MASK_ORDER_BY \

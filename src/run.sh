@@ -1,11 +1,11 @@
-export CUDA_VISIBLE_DEVICES=2
+export CUDA_VISIBLE_DEVICES=0
 DTYPE="imdb"
-NAME="kcd-robust-mask=random-forward_kl"
+NAME="new/keyword-child-dep"
 SPACYM="en_core_web_sm"
-CKPT="ckpt/mask=random-forward-p=15/last"
+CKPT=""
 
 KR=0.06
-TOPK=4
+TOPK=3
 
 MASK_S="keyword_connected"
 MASK_ORDER_BY="dep"
@@ -15,10 +15,10 @@ mkdir -p "results/ours/${DTYPE}/${NAME}"
 cp "$0" "results/ours/${DTYPE}/${NAME}"
 
 
+NSAMPLE=1000
 EMBED="T"
 if [ $EMBED = "T" ]
 then
-  NSAMPLE=5000
   python ./ours.py \
         -do_watermark T \
         -embed T \
@@ -34,11 +34,9 @@ then
         --keyword_mask $K_MASK
 fi
 
-
-EXTRACT="T"
+EXTRACT="F"
 if [ $EXTRACT = "T" ]
 then
-  NSAMPLE=5000
   python ./ours.py -do_watermark T -extract T -extract_corrupted F\
         --exp_name $NAME \
         --dtype $DTYPE \

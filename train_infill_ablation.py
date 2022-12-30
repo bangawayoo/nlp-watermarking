@@ -124,8 +124,6 @@ def main():
     model = INFILL_MODEL
     params = [p for n, p in model.named_parameters()]
     optimizer = AdamW(params, lr=5e-5)
-    fixed_model = copy.deepcopy(model)
-    fixed_model.eval()
 
     num_train_epochs = infill_args.num_epochs
     num_update_steps_per_epoch = len(train_dl)
@@ -150,8 +148,8 @@ def main():
         completed_steps = optim_scheduler_states["steps"]
         lr_scheduler.load_state_dict(optim_scheduler_states["scheduler"])
 
-    model, fixed_model, optimizer, train_dl, eval_dl = accelerator.prepare(
-        model, fixed_model, optimizer, train_dl, eval_dl
+    model, optimizer, train_dl, eval_dl = accelerator.prepare(
+        model, optimizer, train_dl, eval_dl
     )
 
     kl_criterion = torch.nn.KLDivLoss(reduction="batchmean")
@@ -235,7 +233,7 @@ def main():
         losses = {"mlm": [], "r_mlm": [], "acc": [], 'll': []}
         for batch, corr_batch in eval_dl:
             with torch.no_grad():
-                outputs = fixed_model(**batch)
+                outputs = model(**batch)
                 masked_index = (batch['input_ids'] == tokenizer.mask_token_id).nonzero(as_tuple=True)
 
                 corr_outputs = model(**corr_batch)
@@ -308,22 +306,22 @@ def main():
 
         for b_idx, (batch, corr_batch) in enumerate(train_dl):
             model.train()
-            with torch.no_grad():
-                outputs = fixed_model(**batch)
-                if optimize_cls_token:
-                    masked_index = torch.logical_or(batch['input_ids'] == tokenizer.mask_token_id,
-                                                batch['input_ids'] == 101).nonzero(as_tuple=True)
-                else:
-                    masked_index = (batch['input_ids'] == tokenizer.mask_token_id).nonzero(as_tuple=True)
-
-            corr_outputs = model(**corr_batch)
+            outputs = model(**batch)
             if optimize_cls_token:
-                corr_masked_index = torch.logical_or(corr_batch['input_ids'] == tokenizer.mask_token_id,
-                                                 corr_batch['input_ids'] == 101).nonzero(as_tuple=True)
+                masked_index = torch.logical_or(batch['input_ids'] == tokenizer.mask_token_id,
+                                            batch['input_ids'] == 101).nonzero(as_tuple=True)
             else:
-                corr_masked_index = (corr_batch['input_ids'] == tokenizer.mask_token_id).nonzero(as_tuple=True)
+                masked_index = (batch['input_ids'] == tokenizer.mask_token_id).nonzero(as_tuple=True)
 
-            ppl_loss = corr_outputs.loss
+            with torch.no_grad():
+                corr_outputs = model(**corr_batch)
+                if optimize_cls_token:
+                    corr_masked_index = torch.logical_or(corr_batch['input_ids'] == tokenizer.mask_token_id,
+                                                     corr_batch['input_ids'] == 101).nonzero(as_tuple=True)
+                else:
+                    corr_masked_index = (corr_batch['input_ids'] == tokenizer.mask_token_id).nonzero(as_tuple=True)
+
+            ppl_loss = outputs.loss
             # the target distribution is detached from graph
             target_dist = F.softmax(outputs.logits[masked_index], dim=-1)
             pred_dist = F.softmax(corr_outputs.logits[corr_masked_index], dim=-1)
@@ -342,7 +340,7 @@ def main():
             if kl_loss == float("inf") or kl_loss == float("-inf"):
                 logger.info("KL loss is inf!")
                 breakpoint()
-            loss = kl_loss + logit_loss * logit_loss_w
+            loss = ppl_loss
             accelerator.backward(loss)
 
             optimizer.step()

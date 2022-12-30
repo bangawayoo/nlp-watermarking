@@ -1,3 +1,19 @@
+##
+dtype = "dracula"
+with open(f"./data/{dtype}.txt", "r") as f:
+    text = f.readlines()
+
+text_string = " ".join(text).replace("\n", "")
+text_list = text_string.split("  ")
+split_point = int(0.4 * len(text_list))
+corpus = text_list[:split_point]
+test_corpus = text_list[split_point:]
+
+with open(f"./data/train-{dtype}.txt", "w") as f:
+    for line in corpus:
+        f.write(f"{line}\n")
+
+##
 yake_kwargs = {'lan': "en",
                "n": 1,
                "dedupLim": 0.9,

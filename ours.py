@@ -146,8 +146,6 @@ if generic_args.embed:
                 for m_idx in mask_idx:
                     keys.append(wm_tokenized[m_idx].text)
                 keys_str = ", ".join(keys)
-                # if c_idx == 2 and s_idx == 4:
-                #     breakpoint()
                 message_str = ' '.join(message_str) if len(message_str) else ""
                 wr.write(f"{c_idx}\t{s_idx}\t \t \t"
                          f"{''.join(wm_text)}\t{keys_str}\t{message_str}\n")
@@ -230,15 +228,14 @@ if generic_args.extract:
             logger.debug("Create corrupted samples is less than watermarked. Ending extraction...")
             break
         for wm_text in wm_texts:
+            num_corrupted_sen += 1
             sen = spacy_tokenizer(wm_text.strip())
             all_keywords, entity_keywords = model.keyword_module.extract_keyword([sen])
-            # for sanity check, one use the original (uncorrupted) texts
+            # for sanity check, one use the original (uncorrupted) watermarked texts
             sen_ = spacy_tokenizer(clean_wm_text.strip())
             all_keywords_, entity_keywords_ = model.keyword_module.extract_keyword([sen_])
 
             logger.info(f"{c_idx} {sen_idx}")
-
-            num_corrupted_sen += 1
             # extracting states for corrupted
             keyword = all_keywords[0]
             ent_keyword = entity_keywords[0]

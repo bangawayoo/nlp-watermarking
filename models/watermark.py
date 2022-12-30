@@ -183,9 +183,10 @@ class InfillModel:
         agg_cwi, agg_probs, tokenized_pt, mask_idx_pt = [], [], {}, []
 
         if mask_idx:
-            agg_cwi, agg_probs, mask_idx_pt, tokenized_pt  = self.fill_mask(sen, mask_idx,
+            agg_cwi, agg_probs, mask_idx_pt, tokenized_pt = self.fill_mask(sen, mask_idx,
                                                                             train_flag=train_flag,
                                                                             embed_flag=embed_flag)
+            agg_cwi = agg_cwi[:7]
 
         return agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word)
 
