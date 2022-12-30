@@ -290,6 +290,9 @@ class InfillModel:
 
         # filter out subword tokens
         mask_candidates = list(filter(lambda x: not x['token_str'].startswith("##"), mask_candidates))
+        # filter out words that are tokenized into multiple tokens by spacy tokenizer
+        mask_candidates = list(filter(lambda x: len(self.nlp(x['token_str'])) == 1, mask_candidates))
+
         # filter out riskset
         mask_candidates = list(filter(lambda x: x['token_str'] not in riskset, mask_candidates))
         # filter out words with any punctuations

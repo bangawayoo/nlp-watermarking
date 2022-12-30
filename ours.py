@@ -53,7 +53,7 @@ candidate_kwd_cnt = 0
 kwd_match_cnt = 0
 mask_match_cnt = 0
 sample_cnt = 0
-one_cnt = 0 
+one_cnt = 0
 zero_cnt = 0
 
 device = torch.device("cuda")
@@ -123,7 +123,6 @@ if generic_args.embed:
                         valid_watermarks.append(wm_tokenized.text)
                         mask_match_cnt += 1
 
-
                     sample_cnt += 1
                     candidate_kwd_cnt += 1
     
@@ -161,6 +160,7 @@ if generic_args.embed:
     wr.close()
     logger.info(f"UB Bpw : {upper_bound / word_count:.3f}")
     logger.info(f"Bpw : {bit_count / word_count:.3f}")
+    assert sample_cnt > 0, f"No candidate watermarked sets were created"
     logger.info(f"mask match rate: {mask_match_cnt / sample_cnt:.3f}")
     logger.info(f"kwd match rate: {kwd_match_cnt / sample_cnt :.3f}")
     logger.info(f"zero/one ratio: {zero_cnt / one_cnt :.3f}")
@@ -326,6 +326,8 @@ if generic_args.extract:
             # logger.info(f"Gt msg: {' '.join(key)} \n")
             # agg_sentences = ""
             # agg_msg = []
+        logger.info(f"BER: {bit_error_agg['sentence_err_cnt']}/{bit_error_agg['sentence_cnt']}="
+                    f"{bit_error_agg['sentence_err_cnt'] / bit_error_agg['sentence_cnt']:.3f}")
 
     if corrupted_flag:
         # logger.info(f"Corruption Rate: {num_corrupted_sen / len(corrupted_watermarked):3f}")

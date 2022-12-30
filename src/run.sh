@@ -1,11 +1,11 @@
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=1
 DTYPE="imdb"
 NAME="new/keyword-child-dep"
 SPACYM="en_core_web_sm"
 CKPT=""
 
-KR=0.06
-TOPK=3
+KR=0.055
+TOPK=4
 
 MASK_S="keyword_connected"
 MASK_ORDER_BY="dep"
@@ -34,7 +34,7 @@ then
         --keyword_mask $K_MASK
 fi
 
-EXTRACT="F"
+EXTRACT="T"
 if [ $EXTRACT = "T" ]
 then
   python ./ours.py -do_watermark T -extract T -extract_corrupted F\
@@ -51,7 +51,7 @@ then
 fi
 
 
-CORRUPT="T"
+CORRUPT="F"
 if [ $CORRUPT = "T" ]
 then
   SS_THRES=0.98
