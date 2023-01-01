@@ -269,7 +269,7 @@ class InfillModel:
 
         cover_texts = None
         if not self.args.do_watermark:
-            cover_texts = preprocess_txt(corpus, dtype)
+            cover_texts = preprocess_txt(corpus)
             cover_texts = preprocess2sentence(cover_texts, dtype+"-train", start_sample_idx,
                                               num_sample['train'],
                                               spacy_model=self.args.spacy_model)

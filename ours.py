@@ -156,8 +156,11 @@ if generic_args.embed:
             if candidate_kwd_cnt > 0:
                 upper_bound += math.log2(candidate_kwd_cnt)
         progress_bar.update(1)
-    
+        if word_count:
+            logger.info(f"Bpw : {bit_count / word_count:.3f}")
+
     wr.close()
+    logger.info(infill_args)
     logger.info(f"UB Bpw : {upper_bound / word_count:.3f}")
     logger.info(f"Bpw : {bit_count / word_count:.3f}")
     assert sample_cnt > 0, f"No candidate watermarked sets were created"
@@ -175,9 +178,11 @@ if generic_args.embed:
 
     result_dir = os.path.join(dirname, "embed-metrics.txt")
     with open(result_dir, "a") as wr:
+        wr.write(str(vars(infill_args))+"\n")
         wr.write(f"num.sample={num_sample}\t bpw={bit_count / word_count}\t "
                  f"ss={ss_scores[0]}\t ss={ss_scores[1]}\t"
                  f"nli={sum(nli_score) / len(nli_score)}\n")
+
       
       
 ##
@@ -265,12 +270,15 @@ if generic_args.extract:
                 num_mask_match_cnt += 1
 
             infill_match_list = []
-            for a, b in zip(agg_cwi, agg_cwi_):
-                if len(a) == len(b):
-                    infill_match_flag = (a == b).all()
-                else:
-                    infill_match_flag = False
-                infill_match_list.append(infill_match_flag)
+            if len(agg_cwi) == len(agg_cwi_):
+                for a, b in zip(agg_cwi, agg_cwi_):
+                    if len(a) == len(b):
+                        infill_match_flag = (a == b).all()
+                    else:
+                        infill_match_flag = False
+                    infill_match_list.append(infill_match_flag)
+            else:
+                infill_match_list.append(False)
             if all(infill_match_list):
                 infill_match_cnt += 1
 
@@ -326,8 +334,9 @@ if generic_args.extract:
             # logger.info(f"Gt msg: {' '.join(key)} \n")
             # agg_sentences = ""
             # agg_msg = []
-        logger.info(f"BER: {bit_error_agg['sentence_err_cnt']}/{bit_error_agg['sentence_cnt']}="
-                    f"{bit_error_agg['sentence_err_cnt'] / bit_error_agg['sentence_cnt']:.3f}")
+        if bit_error_agg['sentence_cnt']:
+            logger.info(f"BER: {bit_error_agg['sentence_err_cnt']}/{bit_error_agg['sentence_cnt']}="
+                        f"{bit_error_agg['sentence_err_cnt'] / bit_error_agg['sentence_cnt']:.3f}")
 
     if corrupted_flag:
         # logger.info(f"Corruption Rate: {num_corrupted_sen / len(corrupted_watermarked):3f}")

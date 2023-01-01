@@ -14,6 +14,7 @@ class MaskSelector:
                              'dative', 'xcomp', 'pcomp', 'nsubj', 'quantmod', 'conj', 'nsubjpass', 'punct', 'poss',
                              'dobj', 'nmod', 'attr', 'csubjpass', 'meta', 'pobj', 'amod', 'npadvmod', 'appos', 'acomp',
                              'compound', 'oprd', 'nummod']
+        self.dep_ordering = self.dep_ordering[:15]
         self.pos_ordering = ['CCONJ', 'AUX', 'ADP', 'SCONJ', 'DET', 'SPACE', 'INTJ', 'PRON', 'SYM', 'VERB', 'ADV',
                              'PUNCT', 'X', 'PART', 'NOUN', 'ADJ', 'PROPN', 'NUM']
 
@@ -43,7 +44,7 @@ class MaskSelector:
 
         elif type == "child":
             for k in keyword:
-                mask_candidates = list(k.children) + [k.head]
+                mask_candidates = list(k.children)
                 # mask_candidates = mask_candidates[:1]
                 for mask_cand in mask_candidates:
                     if self._check_mask_candidate(mask_cand, mask_word, keyword, ent_keyword):
@@ -54,7 +55,7 @@ class MaskSelector:
         elif type == "child_dep":
             mask_candidates = []
             for k in keyword:
-                connected_components = list(k.children) + [k.head]
+                connected_components = list(k.children)
                 dep_in_sentence = [t.dep_ for t in connected_components]
                 for d in self.dep_ordering:
                     if d in dep_in_sentence:

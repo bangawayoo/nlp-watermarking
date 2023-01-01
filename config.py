@@ -24,7 +24,7 @@ def WatermarkArgs():
     parser = argparse.ArgumentParser(description="For the watermarking module")
     parser.add_argument("-debug_mode", type=str2bool, default=False)
     parser.add_argument("-eval_only", type=str2bool, default=False)
-    parser.add_argument("-do_watermark", type=str2bool, default=False)
+    parser.add_argument("-do_watermark", type=str2bool, default=True)
     parser.add_argument("-train_infill", type=str2bool, default=False)
 
     parser.add_argument("--model_ckpt", type=str, nargs="?", const="")

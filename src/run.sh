@@ -1,21 +1,21 @@
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=0
 DTYPE="imdb"
-NAME="new/keyword-child-dep"
+NAME="new/robust=random-mask"
 SPACYM="en_core_web_sm"
-CKPT=""
+CKPT="ckpt/mask=random-p=15/last"
 
-KR=0.055
+KR=0.05
 TOPK=4
 
-MASK_S="keyword_connected"
+MASK_S="grammar"
 MASK_ORDER_BY="dep"
-K_MASK="child_dep"
+K_MASK="adjacent"
 
 mkdir -p "results/ours/${DTYPE}/${NAME}"
 cp "$0" "results/ours/${DTYPE}/${NAME}"
 
 
-NSAMPLE=1000
+NSAMPLE=5000
 EMBED="T"
 if [ $EMBED = "T" ]
 then
@@ -34,7 +34,7 @@ then
         --keyword_mask $K_MASK
 fi
 
-EXTRACT="T"
+EXTRACT="F"
 if [ $EXTRACT = "T" ]
 then
   python ./ours.py -do_watermark T -extract T -extract_corrupted F\
@@ -50,8 +50,7 @@ then
         --keyword_mask $K_MASK
 fi
 
-
-CORRUPT="F"
+CORRUPT="T"
 if [ $CORRUPT = "T" ]
 then
   SS_THRES=0.98

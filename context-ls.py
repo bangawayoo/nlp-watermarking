@@ -207,12 +207,13 @@ if __name__ == "__main__":
         mword_match_cnt = 0
         infill_match_cnt = 0
         prev_c_idx = 0
+
         for idx, (c_idx, sen_idx, sub_idset, sub_idx, clean_wm_sen, key, msg) in enumerate(clean_watermarked):
             if prev_c_idx != c_idx:
                 error_cnt, cnt = compute_ber(sample_level_bit['extracted'], sample_level_bit['gt'])
                 bit_error_agg['sample_err_cnt'] = bit_error_agg.get('sample_err_cnt', 0) + error_cnt
                 bit_error_agg['sample_cnt'] = bit_error_agg.get('sample_cnt', 0) + cnt
-                sample_level_bit = {'gt':[], 'extracted':[]}
+                sample_level_bit = {'gt': [], 'extracted': []}
                 prev_c_idx = c_idx
 
             if len(corrupted_watermarked) > 0 and len(corrupted_watermarked) <= idx:
@@ -224,7 +225,6 @@ if __name__ == "__main__":
 
             clean_encoded = tokenizer(clean_wm_sen.strip(), add_special_tokens=False, truncation=True,
                                       max_length=tokenizer.model_max_length// 2 - 2)['input_ids']
-
             wm_texts = corrupted_watermarked[idx] if corrupted_flag else [clean_wm_sen.strip()]
             for wm_text in wm_texts:
                 wm_text = wm_text.strip()
@@ -246,9 +246,12 @@ if __name__ == "__main__":
                     mword_match_cnt += 1
 
                 infill_match_list = []
-                for a, b in zip(sub_idset, extracted_idset):
-                    infill_match_flag = a==b
-                    infill_match_list.append(infill_match_flag)
+                if len(sub_idset) == len(extracted_idset):
+                    for a, b in zip(sub_idset, extracted_idset):
+                        infill_match_flag = a==b
+                        infill_match_list.append(infill_match_flag)
+                else:
+                    infill_match_list.append(False)
                 if all(infill_match_list):
                     infill_match_cnt += 1
 
