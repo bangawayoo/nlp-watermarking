@@ -118,3 +118,7 @@ def generate_substitute_candidates(text_processed, topk=3):
     mask_candidates = list(filter(lambda x: x['entail_score'] > sr_threshold, mask_candidates))
 
     return mask_candidates[:topk]
+
+
+def compute_bpw_(result_path, type="log_sum"):
+    pass

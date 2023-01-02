@@ -1,8 +1,8 @@
 export CUDA_VISIBLE_DEVICES=0
 DTYPE="imdb"
-NAME="new/robust=random-mask"
+NAME="new/corpus-bpw"
 SPACYM="en_core_web_sm"
-CKPT="ckpt/mask=random-p=15/last"
+CKPT=""
 
 KR=0.05
 TOPK=4
@@ -17,8 +17,7 @@ cp "$0" "results/ours/${DTYPE}/${NAME}"
 
 NSAMPLE=5000
 EMBED="T"
-if [ $EMBED = "T" ]
-then
+if [ $EMBED = "T" ] ; then
   python ./ours.py \
         -do_watermark T \
         -embed T \
@@ -35,8 +34,7 @@ then
 fi
 
 EXTRACT="F"
-if [ $EXTRACT = "T" ]
-then
+if [ $EXTRACT = "T" ] ; then
   python ./ours.py -do_watermark T -extract T -extract_corrupted F\
         --exp_name $NAME \
         --dtype $DTYPE \
@@ -50,9 +48,8 @@ then
         --keyword_mask $K_MASK
 fi
 
-CORRUPT="T"
-if [ $CORRUPT = "T" ]
-then
+CORRUPT="F"
+if [ $CORRUPT = "T" ] ; then
   SS_THRES=0.98
   ATTACKM="deletion insertion substitution"
   PCT_RANGE="0.025 0.05"

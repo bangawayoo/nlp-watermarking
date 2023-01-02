@@ -10,11 +10,10 @@ import sys
 
 import torch
 from tqdm.auto import tqdm
-from sentence_transformers import SentenceTransformer, util
 
 from config import WatermarkArgs, GenericArgs, stop
 from models.watermark import InfillModel
-from utils.dataset_utils import preprocess2sentence, preprocess_txt, get_result_txt
+from utils.dataset_utils import get_result_txt
 from utils.logging import getLogger
 from utils.metric import Metric
 from utils.misc import compute_ber
@@ -93,7 +92,6 @@ if generic_args.embed:
     
             agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word) = model.run_iter(sen, keyword, ent_keyword,
                                                                                                   train_flag=False, embed_flag=True)
-    
             # check if keyword & mask_indices matches
             valid_watermarks = []
             candidate_kwd_cnt = 0
@@ -309,7 +307,6 @@ if generic_args.extract:
             if len(valid_keys) > 1:
                 try:
                     extracted_msg_decimal = valid_keys.index(wm_keys)
-                    infill_match_cnt2 += 1
                 except:
                     similarity = [len(set(wm_keys).intersection(x)) for x in valid_keys]
                     similar_key = max(zip(valid_keys, similarity), key=lambda x: x[1])[0]
@@ -318,8 +315,6 @@ if generic_args.extract:
                 num_digit = math.ceil(math.log2(len(valid_keys)))
                 extracted_msg = format(extracted_msg_decimal, f"0{num_digit}b")
                 extracted_msg = list(map(int, extracted_msg))
-            else:
-                infill_match_cnt2 += 1
 
             one_cnt += sum(msg)
             zero_cnt += len(msg) - sum(msg)

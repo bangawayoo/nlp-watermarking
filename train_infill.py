@@ -50,7 +50,7 @@ def main():
                 clean_text.append(line[0])
                 corrupted_text.append(line[idx+1])
 
-    # shuffle the instances with fixed seed so that the clean-corrupted pairs are maintained
+    # shuffle the instances with a fixed seed so that the clean-corrupted pairs are maintained
     random.Random(0).shuffle(clean_text)
     random.Random(0).shuffle(corrupted_text)
 

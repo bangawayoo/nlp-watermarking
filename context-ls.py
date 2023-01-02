@@ -1,3 +1,5 @@
+from functools import reduce
+import math
 import os
 import string
 import random
@@ -153,7 +155,10 @@ if __name__ == "__main__":
                 substituted_idset, substituted_indices, watermarking_wordset, encoded_text, message = main(sen_text, f)
                 punct_removed = sen_text.translate(str.maketrans(dict.fromkeys(string.punctuation)))
                 word_count += len([i for i in punct_removed.split(" ") if i not in stop])
-                bit_count += len(substituted_idset)
+                num_cases = 1
+                for sid in substituted_idset:
+                    num_cases *= len(sid)
+                bit_count += math.log2(num_cases)
                 s_idset_str = ""
                 for s_id in substituted_idset:
                     s_idset_str += " ".join(str(x) for x in s_id) + ","
