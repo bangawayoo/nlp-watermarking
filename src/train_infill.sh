@@ -1,6 +1,6 @@
 DEBUG="False"
-EXP_NAME="mask=ours"
-DATA_TYPE="wikitext"
+EXP_NAME="mask=ours-without-cc"
+DATA_TYPE="imdb"
 EPOCH=100
 MODEL_CKPT=""
 
