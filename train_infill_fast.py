@@ -1,11 +1,12 @@
 import copy
-from functools import partial
+import glob
 import os
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 import random
 
 from accelerate import Accelerator
 from datasets import Dataset
+import pandas as pd
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -17,7 +18,7 @@ from config import GenericArgs, InfillArgs, WatermarkArgs
 from models.mask import MaskSelector
 from models.kwd import KeywordExtractor
 from utils.infill_config import INFILL_TOKENIZER, INFILL_MODEL
-from utils.infill_utils import collator_for_masking_random, collator_for_masking_ours, tokenize_function
+from utils.infill_utils import featurize_for_masking_ours, tokenize_function, collator_for_loading_pkl
 from utils.logging import getLogger
 
 
@@ -39,88 +40,105 @@ def main():
                        dir_=dirname,
                        debug_mode=DEBUG_MODE)
 
-    augmented_data_path = f"./data/{dtype}-augmented.txt"
-    clean_text = []
-    corrupted_text = []
+    PREPROCESS_DATA = True
+    _DATADIR = f"./data/train_infill/cache/{dtype}/{generic_args.exp_name}"
+    if not os.path.exists(_DATADIR):
+        os.makedirs(_DATADIR)
 
-    with open(augmented_data_path, "r", encoding="utf-8") as reader:
-        for line in reader:
-            line = line.split("[sep]")
-            for idx in range(len(line)-1):
-                clean_text.append(line[0])
-                corrupted_text.append(line[idx+1])
+    if PREPROCESS_DATA:
+        augmented_data_path = f"./data/{dtype}-augmented.txt"
+        clean_text = []
+        corrupted_text = []
 
-    # shuffle the instances with a fixed seed so that the clean-corrupted pairs are maintained
-    random.Random(0).shuffle(clean_text)
-    random.Random(0).shuffle(corrupted_text)
+        with open(augmented_data_path, "r", encoding="utf-8") as reader:
+            for line in reader:
+                line = line.split("[sep]")
+                for idx in range(len(line)-1):
+                    clean_text.append(line[0])
+                    corrupted_text.append(line[idx+1])
 
-    tokenizer = INFILL_TOKENIZER
+        # shuffle the instances with a fixed seed so that the clean-corrupted pairs are maintained
+        random.Random(0).shuffle(clean_text)
+        random.Random(0).shuffle(corrupted_text)
 
-    batch = clean_text
-    corr_batch = corrupted_text
+        tokenizer = INFILL_TOKENIZER
 
-    clean_dataset = Dataset.from_dict({"text": batch})
-    corr_dataset = Dataset.from_dict({"text": corr_batch})
+        batch = clean_text
+        corr_batch = corrupted_text
 
-    feature = clean_dataset.map(tokenize_function, batched=True)
-    corr_feature = corr_dataset.map(tokenize_function, batched=True)
+        clean_dataset = Dataset.from_dict({"text": batch})
+        corr_dataset = Dataset.from_dict({"text": corr_batch})
 
-    feature = feature.add_column("corr_input_ids", corr_feature['input_ids'])
-    feature = feature.add_column("corr_attention_mask", corr_feature['attention_mask'])
+        feature = clean_dataset.map(tokenize_function, batched=True)
+        corr_feature = corr_dataset.map(tokenize_function, batched=True)
 
-    mask_kwargs = {'method': wm_args.mask_select_method,
-                   "mask_order_by": wm_args.mask_order_by,
-                   "keyword_mask": wm_args.keyword_mask}
-    mask_selector = MaskSelector(**mask_kwargs)
-    keyword_module = KeywordExtractor(ratio=wm_args.keyword_ratio)
+        feature = feature.add_column("corr_input_ids", corr_feature['input_ids'])
+        feature = feature.add_column("corr_attention_mask", corr_feature['attention_mask'])
 
-    # train model
-    pt_dataset = feature.train_test_split(
-        train_size=0.6,
-        test_size=0.4,
-        shuffle=False
-    )
-    eval_dataset = pt_dataset['test']
-    if DEBUG_MODE:
-        eval_dataset = eval_dataset.train_test_split(
-        train_size=0.8,
-        test_size=0.2,
-        shuffle=False)
-        eval_dataset = eval_dataset['test']
+        mask_kwargs = {'method': wm_args.mask_select_method,
+                       "mask_order_by": wm_args.mask_order_by,
+                       "keyword_mask": wm_args.keyword_mask}
+        mask_selector = MaskSelector(**mask_kwargs)
+        keyword_module = KeywordExtractor(ratio=wm_args.keyword_ratio)
 
-    train_bs = 64 if not DEBUG_MODE else 8
+        # train model
+        pt_dataset = feature.train_test_split(
+            train_size=0.6,
+            test_size=0.4,
+            shuffle=False
+        )
+        eval_dataset = pt_dataset['test']
+        if DEBUG_MODE:
+            eval_dataset = eval_dataset.train_test_split(
+            train_size=0.8,
+            test_size=0.2,
+            shuffle=False)
+            eval_dataset = eval_dataset['test']
 
-    if infill_args.masking_type == "random":
-        masking_p = infill_args.masking_p
-        collate_func = partial(collator_for_masking_random, masking_p=masking_p)
-    else:
-        collate_func = partial(collator_for_masking_ours, mask_selector=mask_selector, keyword_module=keyword_module)
+        train_bs = 64 if not DEBUG_MODE else 8
+        train_dataset = pt_dataset['train']
 
-    # train_dataset = pt_dataset['train'].select(range(1))
-    train_dataset = pt_dataset['train']
+
+        logger.info("Processing train data...")
+        last_idx = len(train_dataset) // train_bs + 1
+        progress_bar = tqdm(range(last_idx))
+        for b_idx in range(last_idx):
+            batch = train_dataset[b_idx*train_bs: (b_idx+1)*train_bs]
+            if len(batch):
+                batch = pd.DataFrame(batch).to_dict(orient="records")
+                save_dir = os.path.join(_DATADIR, f"train-{b_idx}.pkl")
+                featurize_for_masking_ours(batch, mask_selector, keyword_module, save_dir)
+                progress_bar.update(1)
+
+        logger.info("Processing eval. data...")
+        last_idx = len(eval_dataset) // train_bs + 1
+        progress_bar = tqdm(range(last_idx))
+        for b_idx in range(last_idx):
+            batch = eval_dataset[b_idx*train_bs: (b_idx+1)*train_bs]
+            if len(batch):
+                batch = pd.DataFrame(batch).to_dict(orient="records")
+                save_dir = os.path.join(_DATADIR, f"train-{b_idx}.pkl")
+                featurize_for_masking_ours(batch, mask_selector, keyword_module, save_dir)
+                progress_bar.update(1)
+
+    if len(glob.glob(os.path.join(_DATADIR, "*.pkl"))) == 0:
+        logger.info(f"Data does not exit in {_DATADIR}. Ending process")
+        exit()
+
+    train_paths = glob.glob(os.path.join(_DATADIR, "train*.pkl"))
+    eval_paths = glob.glob(os.path.join(_DATADIR, "eval*.pkl"))
     train_dl = DataLoader(
-        train_dataset,
-        shuffle=False,
-        batch_size=train_bs,
-        collate_fn=collate_func
+        train_paths,
+        shuffle=True,
+        batch_size=1,
+        collate_fn=collator_for_loading_pkl
     )
     eval_dl = DataLoader(
-        eval_dataset,
+        eval_paths,
         shuffle=False,
-        batch_size=train_bs*2,
-        collate_fn=collate_func
+        batch_size=1,
+        collate_fn=collator_for_loading_pkl
     )
-
-    # log data as texts
-    # cnt = 0
-    # for b_idx, (batch, corr_batch) in enumerate(train_dl):
-    #     for b, cb in zip(batch["input_ids"], corr_batch["input_ids"]):
-    #         logger.info(tokenizer.decode(b).replace("[PAD]", ""))
-    #         logger.info(tokenizer.decode(cb).replace("[PAD]", "") + "\n")
-    #         cnt += 1
-    #     if cnt > 100:
-    #         break
-    # exit()
 
     model = INFILL_MODEL
     params = [p for n, p in model.named_parameters()]
