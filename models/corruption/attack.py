@@ -30,6 +30,38 @@ if args.augment:
                                       spacy_model=wm_args.spacy_model)
     attacker.augment_data(cover_texts)
 
+elif method == "awt":
+    import spacy
+    path2embed = "./data/stego-novel-0.05-300epoch.txt"
+    with open(path2embed, "r") as f:
+        text = f.readlines()[0]
+
+    nlp = spacy.load("en_core_web_sm")
+    doc = nlp(text)
+    sentences = [sent.text_with_ws for sent in doc.sents]
+
+    formatted_sentences = []
+    for sen_idx, sent in enumerate(sentences):
+        formatted_sentences.append((sen_idx, 0, 0, 0 , sent, 0, 0))
+
+    constraint_kwargs = {'use': args.ss_thres, 'num_sentence': args.num_sentence}
+    path2result = f"./data/awt-novels-corrupted-{attack_type}.txt"
+    attacker = Attacker(attack_type, attack_percentage, path2embed, path2result, constraint_kwargs,
+                        num_corr_per_sentence=args.num_corr_per_sentence)
+    attacker.attack_sentence(texts=formatted_sentences)
+
+    # reformat to the original file
+    corrupted_text_list = []
+    with open(path2result, "r") as reader:
+        for line in reader:
+            corrupted_text_list.append(line)
+
+    corrupted_text = "".join([sen.rstrip("\n") for sen in corrupted_text_list])
+    path2result = f"./data/postprocessed-awt-novels-corrupted-{attack_type}.txt"
+    with open(path2result, "w") as f:
+        f.write(corrupted_text)
+
+
 else:
     if args.exp_name:
         path2result = f"./{path2embed.split('.')[0]}-{args.exp_name}-{attack_type}={attack_percentage}.txt"

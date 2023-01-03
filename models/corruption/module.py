@@ -94,12 +94,13 @@ class Attacker:
         self.wr = open(path2result, "w")
 
 
-    def attack_sentence(self, attack_all_samples=True):
+    def attack_sentence(self, attack_all_samples=True, texts=None):
         s_time = time.time()
-        self.texts = get_result_txt(self.path2txt)
+        if texts is None:
+            texts = get_result_txt(self.path2txt)
         skipped_cnt = 0
         attacked_cnt = 0
-        for idx, (c_idx, sen_idx, sub_idset, sub_idx, wm_sen, key, msg) in enumerate(tqdm(self.texts)):
+        for idx, (c_idx, sen_idx, sub_idset, sub_idx, wm_sen, key, msg) in enumerate(tqdm(texts)):
             self.logger.info(f"{c_idx} {sen_idx}")
             if attack_all_samples or len(msg) > 0:
                 corrupted_sentences = self.augmenter_choices[0].augment(wm_sen)

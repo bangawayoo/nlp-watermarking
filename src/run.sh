@@ -69,7 +69,7 @@ if [ $CORRUPT = "T" ] ; then
           ncps=5
         fi
         CORRUPTION_NAME="watermarked"
-        python ./models/corruption/run_attack.py --target_method "ours"\
+        python ./models/corruption/attack.py --target_method "ours"\
                                                  --attack_pct $apct\
                                                  --path2embed "results/ours/${DTYPE}/${NAME}/watermarked.txt"\
                                                  --attack_type $attm --num_sentence $NUM_SENTENCE --ss_thres $SS_THRES \

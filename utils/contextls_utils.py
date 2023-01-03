@@ -13,7 +13,12 @@ from nltk.corpus import stopwords
 from transformers import AutoTokenizer, pipeline
 
 tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
-pipe_fill_mask = pipeline('fill-mask', model='bert-base-cased', device=0, top_k=32)
+
+from transformers import pipeline, AutoModelForMaskedLM
+
+model = AutoModelForMaskedLM.from_pretrained("ckpt/mask=random-forward-p=15/last/")
+pipe_fill_mask = pipeline('fill-mask', model=model, tokenizer='bert-base-cased', device=0, top_k=32)
+# pipe_fill_mask = pipeline('fill-mask', model='bert-base-cased', device=0, top_k=32)
 pipe_classification = pipeline(model="roberta-large-mnli", device=0, top_k=None)
 sr_threshold = 0.95
 stop = set(stopwords.words('english'))

@@ -162,11 +162,11 @@ def change_str_to_int(listed_str):
     return int_str
 
 
-def get_result_txt(result_txt):
+def get_result_txt(result_txt, sep='[sep]'):
     results = []
     with open(f"{result_txt}", "r") as reader:
         for line in reader:
-            line = line.split("\t")
+            line = line.split(sep)
             if len(line) == 7:
                 # corpus idx
                 line[0] = int(line[0])
@@ -178,7 +178,7 @@ def get_result_txt(result_txt):
                 # substituted index
                 line[3] = change_str_to_int(line[3].split(" "))
                 # watermarked text
-                line[4] = line[4].strip() if len(line[4]) >0 else ""
+                line[4] = line[4].strip() if len(line[4]) > 0 else ""
                 # substituted text
                 line[5] = [x.strip() for x in line[5].split(',')]
                 # embedded message
