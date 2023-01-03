@@ -40,4 +40,4 @@ CUDA_VISIBLE_DEVICES="0" accelerate launch --mixed_precision bf16 \
                   --masking_type $MASKING_TYPE \
                   --masking_p $MASKING_P \
                   --kl_type $KL_TYPE \
-                  -eval_init False
+                  -eval_init False -exclude_cc T

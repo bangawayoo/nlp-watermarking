@@ -117,7 +117,7 @@ def main():
             batch = eval_dataset[b_idx*train_bs: (b_idx+1)*train_bs]
             if len(batch):
                 batch = pd.DataFrame(batch).to_dict(orient="records")
-                save_dir = os.path.join(_DATADIR, f"train-{b_idx}.pkl")
+                save_dir = os.path.join(_DATADIR, f"eval-{b_idx}.pkl")
                 featurize_for_masking_ours(batch, mask_selector, keyword_module, save_dir)
                 progress_bar.update(1)
 
