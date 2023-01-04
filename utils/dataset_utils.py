@@ -162,7 +162,7 @@ def change_str_to_int(listed_str):
     return int_str
 
 
-def get_result_txt(result_txt, sep='[sep]'):
+def get_result_txt(result_txt, sep='\t'):
     results = []
     with open(f"{result_txt}", "r") as reader:
         for line in reader:

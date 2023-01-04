@@ -32,7 +32,7 @@ if args.augment:
 
 elif method == "awt":
     import spacy
-    path2embed = "./data/stego-novel-0.05-300epoch.txt"
+    path2embed = "./data/awt/stego-novel-0.05.txt"
     with open(path2embed, "r") as f:
         text = f.readlines()[0]
 
@@ -45,9 +45,9 @@ elif method == "awt":
         formatted_sentences.append((sen_idx, 0, 0, 0 , sent, 0, 0))
 
     constraint_kwargs = {'use': args.ss_thres, 'num_sentence': args.num_sentence}
-    path2result = f"./data/awt-novels-corrupted-{attack_type}.txt"
+    path2result = f"./data/awt/awt-novels-corrupted-{attack_type}.txt"
     attacker = Attacker(attack_type, attack_percentage, path2embed, path2result, constraint_kwargs,
-                        num_corr_per_sentence=args.num_corr_per_sentence)
+                        num_corr_per_sentence=args.num_corr_per_sentence, args=args)
     attacker.attack_sentence(texts=formatted_sentences)
 
     # reformat to the original file
@@ -57,7 +57,7 @@ elif method == "awt":
             corrupted_text_list.append(line)
 
     corrupted_text = "".join([sen.rstrip("\n") for sen in corrupted_text_list])
-    path2result = f"./data/postprocessed-awt-novels-corrupted-{attack_type}.txt"
+    path2result = f"./data/awt/postprocessed-awt-novels-corrupted-{attack_type}.txt"
     with open(path2result, "w") as f:
         f.write(corrupted_text)
 

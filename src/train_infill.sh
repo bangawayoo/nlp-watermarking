@@ -1,5 +1,5 @@
 DEBUG="False"
-EXP_NAME="mask=ours-without-cc"
+EXP_NAME="mask=ours-dep"
 DATA_TYPE="imdb"
 EPOCH=100
 MODEL_CKPT=""
@@ -8,10 +8,11 @@ KL_TYPE="reverse"
 MASKING_TYPE="ours"
 MASKING_P=0.15
 
-KR=0.06
+KR=0.05
 MASK_S="grammar"
 MASK_ORDER_BY="dep"
 K_MASK="adjacent"
+EXCLUDE_CC="T"
 
 mkdir -p "./ckpt/${DATA_TYPE}/${EXP_NAME}"
 cp "$0" "./ckpt/${DATA_TYPE}/${EXP_NAME}"
@@ -29,7 +30,7 @@ cp "$0" "./ckpt/${DATA_TYPE}/${EXP_NAME}"
 #                  --kl_type $KL_TYPE \
 #                  -eval_init False
 
-CUDA_VISIBLE_DEVICES="0" accelerate launch --mixed_precision bf16 \
+CUDA_VISIBLE_DEVICES="2" accelerate launch --mixed_precision bf16 \
  train_infill_fast.py --exp_name $EXP_NAME \
                   --dtype $DATA_TYPE \
                   --num_epochs $EPOCH \
@@ -40,4 +41,4 @@ CUDA_VISIBLE_DEVICES="0" accelerate launch --mixed_precision bf16 \
                   --masking_type $MASKING_TYPE \
                   --masking_p $MASKING_P \
                   --kl_type $KL_TYPE \
-                  -eval_init False -exclude_cc T
+                  -eval_init False -exclude_cc $EXCLUDE_CC

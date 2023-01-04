@@ -51,9 +51,11 @@ class Attacker:
                 compare_against_original=True,
                 window_size=None)
         ]
+        if args is not None and args.target_method == "awt":
+            constraints = constraints + [StopwordModificationForAWT()]
+
         self.augmenter_choices = []
         transformations_per_example = num_corr_per_sentence
-
         if attack_type == "insertion" or augment_data_flag:
             shared_masked_lm = transformers.AutoModelForCausalLM.from_pretrained("distilroberta-base")
             shared_tokenizer = transformers.AutoTokenizer.from_pretrained("distilroberta-base")
@@ -75,6 +77,7 @@ class Attacker:
                 min_confidence=0.3,
                 window_size=None
             )
+
             self.augmenter_choices.append(Augmenter(transformation=transformation,
                                                     transformations_per_example=transformations_per_example,
                                                     constraints=constraints,
@@ -415,3 +418,30 @@ class SentenceTransformerEncoder(SentenceEncoder):
 
     def encode(self, sentences):
         return self.embedder.encode(sentences, convert_to_tensor=True)
+
+from textattack.constraints import PreTransformationConstraint
+
+
+class StopwordModificationForAWT(PreTransformationConstraint):
+    """A constraint disallowing the modification of stopwords."""
+
+    def __init__(self):
+        self.stopwords = ["<eos>", ">", "<", "eos"]
+
+    def _get_modifiable_indices(self, current_text):
+        """Returns the word indices in ``current_text`` which are able to be
+        modified."""
+        non_stopword_indices = set()
+        for i, word in enumerate(current_text.words):
+            if word not in self.stopwords:
+                non_stopword_indices.add(i)
+        return non_stopword_indices
+
+    def check_compatibility(self, transformation):
+        """The stopword constraint only is concerned with word swaps since
+        paraphrasing phrases containing stopwords is OK.
+
+        Args:
+            transformation: The ``Transformation`` to check compatibility with.
+        """
+        return True
