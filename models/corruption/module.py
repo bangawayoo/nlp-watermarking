@@ -432,6 +432,7 @@ class StopwordModificationForAWT(PreTransformationConstraint):
         """Returns the word indices in ``current_text`` which are able to be
         modified."""
         non_stopword_indices = set()
+
         for i, word in enumerate(current_text.words):
             if word not in self.stopwords:
                 non_stopword_indices.add(i)
@@ -445,3 +446,5 @@ class StopwordModificationForAWT(PreTransformationConstraint):
             transformation: The ``Transformation`` to check compatibility with.
         """
         return True
+
+

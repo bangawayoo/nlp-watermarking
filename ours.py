@@ -67,7 +67,6 @@ if generic_args.embed:
                        debug_mode=DEBUG_MODE)
 
 
-
     result_dir = os.path.join(dirname, "watermarked.txt")
     if not os.path.exists(result_dir):
         os.makedirs(os.path.dirname(result_dir), exist_ok=True)
@@ -76,7 +75,12 @@ if generic_args.embed:
         for model_name in ["roberta", "all-MiniLM-L6-v2"]:
             ss_score, ss_dist = metric.compute_ss(result_dir, model_name, cover_texts)
             logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
-        nli_score = metric.compute_nli(result_dir, cover_texts)
+        nli_score, all_texts, all_wm_texts = metric.compute_nli(result_dir, cover_texts)
+        wr = open(os.path.splitext(result_dir)[0]+"-nli.txt", "w")
+        for r_idx in range(len(all_texts)):
+            line = f"{all_texts[r_idx]}\t{all_wm_texts[r_idx]}\t{ss_score[r_idx]}\t{nli_score[r_idx]}\n"
+            wr.write(line)
+        wr.close()
         logger.info(f"nli score: {sum(nli_score) / len(nli_score):.3f}")
         exit()
 

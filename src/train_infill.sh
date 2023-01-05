@@ -1,5 +1,5 @@
 DEBUG="False"
-EXP_NAME="mask=ours-dep"
+EXP_NAME="mask=ours-dep-without-cc"
 DATA_TYPE="imdb"
 EPOCH=100
 MODEL_CKPT=""

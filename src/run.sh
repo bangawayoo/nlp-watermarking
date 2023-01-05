@@ -1,4 +1,4 @@
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=1
 DTYPE="imdb"
 NAME="new/dep-without-cc"
 SPACYM="en_core_web_sm"
@@ -16,7 +16,7 @@ mkdir -p "results/ours/${DTYPE}/${NAME}"
 cp "$0" "results/ours/${DTYPE}/${NAME}"
 
 NSAMPLE=5000
-EMBED="F"
+EMBED="T"
 if [ $EMBED = "T" ] ; then
   python ./ours.py \
         -do_watermark T \
@@ -30,7 +30,7 @@ if [ $EMBED = "T" ] ; then
         --topk $TOPK \
         --mask_select_method $MASK_S \
         --mask_order_by $MASK_ORDER_BY \
-        --keyword_mask $K_MASK -exclude_cc $EXCLUDE_CC
+        --keyword_mask $K_MASK -exclude_cc $EXCLUDE_CC -metric_only T
 fi
 
 EXTRACT="F"
@@ -48,11 +48,11 @@ if [ $EXTRACT = "T" ] ; then
         --keyword_mask $K_MASK -exclude_cc $EXCLUDE_CC
 fi
 
-CORRUPT="T"
+CORRUPT="F"
 if [ $CORRUPT = "T" ] ; then
   SS_THRES=0.98
-  ATTACKM="substitution"
-  PCT_RANGE="0.05"
+  ATTACKM="deletion insertion substitution"
+  PCT_RANGE="0.025 0.05"
   NUM_SENTENCE=1000
 
   SEED=$(seq 0 0)

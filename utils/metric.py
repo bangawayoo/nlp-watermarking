@@ -1,3 +1,5 @@
+import os.path
+
 from datasets import load_dataset
 import numpy as np
 from sentence_transformers import SentenceTransformer, util
@@ -5,6 +7,7 @@ import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from utils.dataset_utils import preprocess2sentence, preprocess_txt, get_result_txt
+
 
 class Metric:
     def __init__(self, device, **kwargs):
@@ -20,7 +23,7 @@ class Metric:
 
         self.args = {}
         self.test_cv = None
-        for k,v in kwargs.items():
+        for k, v in kwargs.items():
             self.args[k] = v
 
     def load_test_cv(self):
@@ -34,7 +37,7 @@ class Metric:
 
     def compute_ss(self, path2wm, model_name, cover_texts=None):
         if cover_texts is None:
-            cover_texts = self.test_cv if self. test_cv else self.load_test_cv()
+            cover_texts = self.test_cv if self.test_cv else self.load_test_cv()
 
         watermarked = get_result_txt(path2wm)
         batch = []
@@ -44,11 +47,11 @@ class Metric:
 
         for idx, (c_idx, sen_idx, sub_idset, sub_idx, wm_text, key, msg) in enumerate(watermarked):
             # only include watermarks that are altered from the original
-            if len(msg) > 0 and 1 in msg:
+            if len(msg) > 0:
                 text = cover_texts[int(c_idx)][int(sen_idx)].text
                 batch.append(text)
                 wm_batch.append(wm_text.strip())
-            if (len(batch) == 64 or idx == len(watermarked)-1) and len(wm_batch) != 0:
+            if (len(batch) == 64 or idx == len(watermarked) - 1) and len(wm_batch) != 0:
                 wm_emb = self.sts_model[model_name].encode(wm_batch, convert_to_tensor=True)
                 emb = self.sts_model[model_name].encode(batch, convert_to_tensor=True)
                 cosine_scores = util.cos_sim(wm_emb, emb)
@@ -66,21 +69,23 @@ class Metric:
 
     def compute_nli(self, path2wm, cover_texts=None):
         if cover_texts is None:
-            cover_texts = self.test_cv if self. test_cv else self.load_test_cv()
+            cover_texts = self.test_cv if self.test_cv else self.load_test_cv()
 
         watermarked = get_result_txt(path2wm)
         batch = []
         wm_batch = []
         nli_score = []
+        all_texts = []
+        all_wm_texts = []
 
         for idx, (c_idx, sen_idx, sub_idset, sub_idx, wm_text, key, msg) in enumerate(watermarked):
             # only include watermarks that are altered from the original
-            if len(msg) > 0 and 1 in msg:
+            if len(msg) > 0:
                 text = cover_texts[int(c_idx)][int(sen_idx)].text
                 batch.append(text)
                 wm_batch.append(wm_text.strip())
 
-            if (len(batch) == 64 or idx == len(watermarked)-1) and len(wm_batch) != 0:
+            if (len(batch) == 64 or idx == len(watermarked) - 1) and len(wm_batch) != 0:
                 nli_encodings = self._concatenate_for_nli(batch, wm_batch)
                 nli_encodings = {k: v.to(self.device) for k, v in nli_encodings.items()}
                 with torch.no_grad():
@@ -92,14 +97,17 @@ class Metric:
                 #     scores = scores[np.newaxis, :]
                 # e_x = np.exp(scores - np.max(scores, axis=1, keepdims=True))
                 # entail_score = (e_x / np.sum(e_x, axis=1, keepdims=True))[:, 1]
+                all_texts.extend(batch)
+                all_wm_texts.extend(wm_batch)
                 nli_score.extend(entail_score.tolist())
                 batch = []
                 wm_batch = []
 
-        return nli_score
+        return nli_score, all_texts, all_wm_texts
 
     def _concatenate_for_nli(self, candidate_texts, original_texts):
-        nli_input_encoded = self.nli_tokenizer(original_texts, candidate_texts, add_special_tokens=True, return_tensors='pt',
+        nli_input_encoded = self.nli_tokenizer(original_texts, candidate_texts, add_special_tokens=True,
+                                               return_tensors='pt',
                                                padding='longest')
 
         return nli_input_encoded

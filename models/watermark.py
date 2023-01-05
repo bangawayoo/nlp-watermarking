@@ -63,7 +63,7 @@ class InfillModel:
         self.logger.info(args)
         self.mask_selector = MaskSelector(method=args.mask_select_method,
                                           mask_order_by=args.mask_order_by,
-                                          keyword_mask=args.keyword_mask)
+                                          keyword_mask=args.keyword_mask, exclude_cc=args.exclude_cc)
         self.nlp = spacy.load(args.spacy_model)
 
         self.metric = {'entail_score': [], 'num_subs': [], 'train_entail_score': []}

@@ -14,5 +14,5 @@ export CUDA_VISIBLE_DEVICES=0
 
 
 python ./models/corruption/attack.py --target_method "awt" --attack_pct 0.025 --attack_type "deletion"
-python ./models/corruption/attack.py --target_method "awt" --attack_pct 0.025 --attack_type "insertion"
+python ./models/corruption/attack.py --target_method "awt" --attack_pct 0.99 --attack_type "insertion"
 python ./models/corruption/attack.py --target_method "awt" --attack_pct 0.025 --attack_type "substitution"
