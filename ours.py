@@ -169,13 +169,14 @@ if generic_args.embed:
     logger.info(f"mask match rate: {mask_match_cnt / sample_cnt:.3f}")
     logger.info(f"kwd match rate: {kwd_match_cnt / sample_cnt :.3f}")
     logger.info(f"zero/one ratio: {zero_cnt / one_cnt :.3f}")
+    logger.info(f"calls to LM: {model.call_to_lm}")
 
     ss_scores = []
     for model_name in ["roberta", "all-MiniLM-L6-v2"]:
         ss_score, ss_dist = metric.compute_ss(result_dir, model_name, cover_texts)
         ss_scores.append(sum(ss_score) / len(ss_score))
         logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
-    nli_score = metric.compute_nli(result_dir, cover_texts)
+    nli_score, _, _ = metric.compute_nli(result_dir, cover_texts)
     logger.info(f"nli score: {sum(nli_score) / len(nli_score):.3f}")
 
     result_dir = os.path.join(dirname, "embed-metrics.txt")

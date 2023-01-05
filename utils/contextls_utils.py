@@ -16,15 +16,16 @@ tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
 
 from transformers import pipeline, AutoModelForMaskedLM
 
-model = AutoModelForMaskedLM.from_pretrained("ckpt/mask=random-forward-p=15/last/")
-pipe_fill_mask = pipeline('fill-mask', model=model, tokenizer='bert-base-cased', device=0, top_k=32)
-# pipe_fill_mask = pipeline('fill-mask', model='bert-base-cased', device=0, top_k=32)
+_calls_to_lm = 0
+# model = AutoModelForMaskedLM.from_pretrained("ckpt/mask=random-forward-p=15/last/")
+# pipe_fill_mask = pipeline('fill-mask', model=model, tokenizer='bert-base-cased', device=0, top_k=32)
+pipe_fill_mask = pipeline('fill-mask', model='bert-base-cased', device=0, top_k=32)
 pipe_classification = pipeline(model="roberta-large-mnli", device=0, top_k=None)
 sr_threshold = 0.95
 stop = set(stopwords.words('english'))
 punctuation = set(string.punctuation)
 riskset = stop.union(punctuation)
-topk = 2
+topk = 3
 
 
 def synchronicity_test(index, local_context):
@@ -78,9 +79,11 @@ def concatenate_for_ls(text):
     return tokenizer.decode(tokens_for_ls)
 
 
-def generate_substitute_candidates(text_processed, topk=3):
+def generate_substitute_candidates(text_processed, topk=2):
+    global _calls_to_lm
     text_for_ls = concatenate_for_ls(text_processed)
     mask_candidates = pipe_fill_mask(text_for_ls)
+    _calls_to_lm += 1
 
     # filter out words with only difference in cases (lowercase, uppercase)
     text = tokenizer.decode(text_processed[-2])

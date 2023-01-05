@@ -1,6 +1,6 @@
 DEBUG="False"
 EXP_NAME="mask=ours-dep-without-cc"
-DATA_TYPE="imdb"
+DATA_TYPE="wikitext"
 EPOCH=100
 MODEL_CKPT=""
 
@@ -8,7 +8,7 @@ KL_TYPE="reverse"
 MASKING_TYPE="ours"
 MASKING_P=0.15
 
-KR=0.05
+KR=0.06
 MASK_S="grammar"
 MASK_ORDER_BY="dep"
 K_MASK="adjacent"
@@ -30,7 +30,7 @@ cp "$0" "./ckpt/${DATA_TYPE}/${EXP_NAME}"
 #                  --kl_type $KL_TYPE \
 #                  -eval_init False
 
-CUDA_VISIBLE_DEVICES="2" accelerate launch --mixed_precision bf16 \
+CUDA_VISIBLE_DEVICES="0" accelerate launch --mixed_precision bf16 \
  train_infill_fast.py --exp_name $EXP_NAME \
                   --dtype $DATA_TYPE \
                   --num_epochs $EPOCH \

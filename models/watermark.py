@@ -45,6 +45,7 @@ class InfillModel:
 
         self.tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
         self.lm_head = AutoModelForMaskedLM.from_pretrained("bert-base-cased").to(self.device)
+        self.call_to_lm = 0
         if args.model_ckpt:
             if args.model_ckpt.endswith(".pth"):
                 state_dict = torch.load(args.model_ckpt, map_location=self.device)["model"]
@@ -94,7 +95,7 @@ class InfillModel:
         else:
             with torch.no_grad():
                 logits = self.lm_head(**inputs).logits
-
+        self.call_to_lm += 1
         mask_idx_pt = torch.nonzero(inputs['input_ids'] == self.tokenizer.mask_token_id, as_tuple=True)
 
         if mask_idx_pt[0].numel() == 0:
@@ -186,6 +187,7 @@ class InfillModel:
             agg_cwi, agg_probs, mask_idx_pt, tokenized_pt = self.fill_mask(sen, mask_idx,
                                                                             train_flag=train_flag,
                                                                             embed_flag=embed_flag)
+            # Limit the maximum number of candidates to =< top-k ^ 7
             agg_cwi = agg_cwi[:7]
 
         return agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word)

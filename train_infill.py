@@ -70,7 +70,8 @@ def main():
 
     mask_kwargs = {'method': wm_args.mask_select_method,
                    "mask_order_by": wm_args.mask_order_by,
-                   "keyword_mask": wm_args.keyword_mask}
+                   "keyword_mask": wm_args.keyword_mask,
+                   'exclude_cc': wm_args.exclude_cc}
     mask_selector = MaskSelector(**mask_kwargs)
     keyword_module = KeywordExtractor(ratio=wm_args.keyword_ratio)
 

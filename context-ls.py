@@ -141,9 +141,15 @@ if __name__ == "__main__":
         for model_name in ["roberta", "all-MiniLM-L6-v2"]:
             ss_score, ss_dist = metric.compute_ss(result_dir, model_name, cover_texts)
             logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
-        nli_score = metric.compute_nli(result_dir, cover_texts)
+        nli_score, all_texts, all_wm_texts = metric.compute_nli(result_dir, cover_texts)
+        wr = open(os.path.splitext(result_dir)[0]+"-nli.txt", "w")
+        for r_idx in range(len(all_texts)):
+            line = f"{all_texts[r_idx]}\t{all_wm_texts[r_idx]}\t{ss_score[r_idx]}\t{nli_score[r_idx]}\n"
+            wr.write(line)
+        wr.close()
         logger.info(f"nli score: {sum(nli_score) / len(nli_score):.3f}")
         exit()
+
 
     if args.embed:
         # assert not os.path.isfile(result_dir), f"{result_dir} already exists!"
@@ -182,8 +188,10 @@ if __name__ == "__main__":
             ss_score, ss_dist = metric.compute_ss(result_dir, model_name, cover_texts)
             ss_scores.append(sum(ss_score) / len(ss_score))
             logger.info(f"ss score: {sum(ss_score) / len(ss_score):.3f}")
-        nli_score = metric.compute_nli(result_dir, cover_texts)
+        nli_score, _, _ = metric.compute_nli(result_dir, cover_texts)
         logger.info(f"nli score: {sum(nli_score) / len(nli_score):.3f}")
+        from utils.contextls_utils import _calls_to_lm
+        logger.info(f"calls to LM: {_calls_to_lm}")
 
         with open(os.path.join(dirname, "embed-metrics.txt"), "a") as wr:
             wr.write(f"num.sample={args.num_sample}\t bpw={bit_count / word_count}\t "

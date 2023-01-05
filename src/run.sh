@@ -1,21 +1,23 @@
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=0
 DTYPE="imdb"
-NAME="new/dep-without-cc"
+NAME="new/payload"
 SPACYM="en_core_web_sm"
 CKPT=""
 
-KR=0.05
+KR=0.11
 TOPK=4
 
 MASK_S="grammar"
 MASK_ORDER_BY="dep"
 K_MASK="adjacent"
-EXCLUDE_CC="T"
+EXCLUDE_CC="F"
+
 
 mkdir -p "results/ours/${DTYPE}/${NAME}"
 cp "$0" "results/ours/${DTYPE}/${NAME}"
 
-NSAMPLE=5000
+METRIC_ONLY="F"
+NSAMPLE=100
 EMBED="T"
 if [ $EMBED = "T" ] ; then
   python ./ours.py \
@@ -30,7 +32,7 @@ if [ $EMBED = "T" ] ; then
         --topk $TOPK \
         --mask_select_method $MASK_S \
         --mask_order_by $MASK_ORDER_BY \
-        --keyword_mask $K_MASK -exclude_cc $EXCLUDE_CC -metric_only T
+        --keyword_mask $K_MASK -exclude_cc $EXCLUDE_CC -metric_only $METRIC_ONLY
 fi
 
 EXTRACT="F"
