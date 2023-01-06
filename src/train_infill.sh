@@ -1,6 +1,6 @@
 
-DEBUG="True"
-EXP_NAME="soft_target"
+DEBUG="False"
+EXP_NAME="random-masking"
 DATA_TYPE="dracula"
 EPOCH=100
 MODEL_CKPT=""
@@ -14,7 +14,7 @@ MASK_S="grammar"
 MASK_ORDER_BY="dep"
 K_MASK="adjacent"
 EXCLUDE_CC="T"
-OPTIM_TOPK="F"
+OPTIM_TOPK="T"
 
 mkdir -p "./ckpt/${DATA_TYPE}/${EXP_NAME}"
 cp "$0" "./ckpt/${DATA_TYPE}/${EXP_NAME}"

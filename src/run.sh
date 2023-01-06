@@ -1,13 +1,13 @@
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=1
 DTYPE="dracula"
-NAME="new/robust=keyword"
+NAME="new/comparison-with-awt"
 SPACYM="en_core_web_sm"
-CKPT="ckpt/dracula/mask=ours-keyword/last"
+CKPT=""
 
-KR=0.07
-TOPK=4
+KR=0.01
+TOPK=2
 
-MASK_S="keyword_connected"
+MASK_S="grammar"
 MASK_ORDER_BY="dep"
 K_MASK="adjacent"
 EXCLUDE_CC="F"
@@ -17,7 +17,7 @@ mkdir -p "results/ours/${DTYPE}/${NAME}"
 cp "$0" "results/ours/${DTYPE}/${NAME}"
 
 METRIC_ONLY="F"
-NSAMPLE=5000
+NSAMPLE=1000
 EMBED="T"
 if [ $EMBED = "T" ] ; then
   python ./ours.py \

@@ -18,7 +18,7 @@ from config import GenericArgs, InfillArgs, WatermarkArgs
 from models.mask import MaskSelector
 from models.kwd import KeywordExtractor
 from utils.infill_config import INFILL_TOKENIZER, INFILL_MODEL
-from utils.infill_utils import featurize_for_masking_ours, tokenize_function, collator_for_loading_pkl
+from utils.infill_utils import featurize_for_masking_ours, featurize_for_masking_random, tokenize_function, collator_for_loading_pkl
 from utils.logging import getLogger
 
 # print(torch.cuda.is_available())
@@ -41,7 +41,7 @@ def main():
                        dir_=dirname,
                        debug_mode=DEBUG_MODE)
 
-    PREPROCESS_DATA = False
+    PREPROCESS_DATA = True
     _DATADIR = f"./data/train_infill/cache/{dtype}/{generic_args.exp_name}"
     if not os.path.exists(_DATADIR):
         os.makedirs(_DATADIR)
@@ -110,7 +110,10 @@ def main():
             if len(batch):
                 batch = pd.DataFrame(batch).to_dict(orient="records")
                 save_dir = os.path.join(_DATADIR, f"train-{b_idx}.pkl")
-                featurize_for_masking_ours(batch, mask_selector, keyword_module, save_dir)
+                if infill_args.masking_type == "ours":
+                    featurize_for_masking_ours(batch, mask_selector, keyword_module, save_dir)
+                else:
+                    featurize_for_masking_random(batch, infill_args.masking_p, save_dir)
                 progress_bar.update(1)
 
         logger.info("Processing eval. data...")
@@ -121,7 +124,10 @@ def main():
             if len(batch):
                 batch = pd.DataFrame(batch).to_dict(orient="records")
                 save_dir = os.path.join(_DATADIR, f"eval-{b_idx}.pkl")
-                featurize_for_masking_ours(batch, mask_selector, keyword_module, save_dir)
+                if infill_args.masking_type == "ours":
+                    featurize_for_masking_ours(batch, mask_selector, keyword_module, save_dir)
+                else:
+                    featurize_for_masking_random(batch, infill_args.masking_p, save_dir)
                 progress_bar.update(1)
 
     if len(glob.glob(os.path.join(_DATADIR, "*.pkl"))) == 0:
