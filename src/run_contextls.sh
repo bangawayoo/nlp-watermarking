@@ -1,6 +1,6 @@
 export CUDA_VISIBLE_DEVICES=1
 
-NAME="topk=3"
+NAME="topk=2"
 SPACYM="en_core_web_sm"
 DTYPE="imdb"
 

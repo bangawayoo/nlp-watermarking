@@ -93,5 +93,6 @@ def InfillArgs():
     parser.add_argument("--dtype", type=str, default='imdb')
     parser.add_argument("--spacy_model", type=str, default="en_core_web_sm")
     parser.add_argument("-preprocess_data", type=str2bool, default=False)
+    parser.add_argument("-optimize_topk", type=str2bool, default=True)
 
     return parser

@@ -25,7 +25,7 @@ sr_threshold = 0.95
 stop = set(stopwords.words('english'))
 punctuation = set(string.punctuation)
 riskset = stop.union(punctuation)
-topk = 3
+topk = 2
 
 
 def synchronicity_test(index, local_context):

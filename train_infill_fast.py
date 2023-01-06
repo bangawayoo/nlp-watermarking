@@ -21,7 +21,8 @@ from utils.infill_config import INFILL_TOKENIZER, INFILL_MODEL
 from utils.infill_utils import featurize_for_masking_ours, tokenize_function, collator_for_loading_pkl
 from utils.logging import getLogger
 
-
+# print(torch.cuda.is_available())
+# exit()
 random.seed(1230)
 
 # @record
@@ -40,7 +41,7 @@ def main():
                        dir_=dirname,
                        debug_mode=DEBUG_MODE)
 
-    PREPROCESS_DATA = True
+    PREPROCESS_DATA = False
     _DATADIR = f"./data/train_infill/cache/{dtype}/{generic_args.exp_name}"
     if not os.path.exists(_DATADIR):
         os.makedirs(_DATADIR)
@@ -180,7 +181,7 @@ def main():
     log_freq = 1000
     kl_weight = 1.0
     topk = 32
-    optimize_topk = True
+    optimize_topk = infill_args.optimize_topk
     use_logit_loss = False
     optimize_cls_token = False
     mse_criterion = torch.nn.MSELoss()
@@ -234,7 +235,6 @@ def main():
             # topk_pred_dist = torch.cat(topk_pred_dist, dim=1)
             # topk_pred_dist = topk_pred_dist / topk_pred_dist.sum(dim=-1, keepdim=True)
             # topk_target_dist = topk_target_dist / topk_target_dist.sum(dim=-1, keepdim=True)
-
             # kl_loss = kl_criterion(topk_pred_dist.log(), topk_target_dist)
 
         logit_loss = torch.tensor(-1, dtype=torch.float, device=target_dist.device)

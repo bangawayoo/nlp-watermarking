@@ -1,13 +1,13 @@
 export CUDA_VISIBLE_DEVICES=0
-DTYPE="imdb"
-NAME="new/payload"
+DTYPE="dracula"
+NAME="new/robust=keyword"
 SPACYM="en_core_web_sm"
-CKPT=""
+CKPT="ckpt/dracula/mask=ours-keyword/last"
 
-KR=0.11
+KR=0.07
 TOPK=4
 
-MASK_S="grammar"
+MASK_S="keyword_connected"
 MASK_ORDER_BY="dep"
 K_MASK="adjacent"
 EXCLUDE_CC="F"
@@ -17,7 +17,7 @@ mkdir -p "results/ours/${DTYPE}/${NAME}"
 cp "$0" "results/ours/${DTYPE}/${NAME}"
 
 METRIC_ONLY="F"
-NSAMPLE=100
+NSAMPLE=5000
 EMBED="T"
 if [ $EMBED = "T" ] ; then
   python ./ours.py \
@@ -50,7 +50,7 @@ if [ $EXTRACT = "T" ] ; then
         --keyword_mask $K_MASK -exclude_cc $EXCLUDE_CC
 fi
 
-CORRUPT="F"
+CORRUPT="T"
 if [ $CORRUPT = "T" ] ; then
   SS_THRES=0.98
   ATTACKM="deletion insertion substitution"
