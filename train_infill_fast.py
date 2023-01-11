@@ -41,11 +41,13 @@ def main():
                        dir_=dirname,
                        debug_mode=DEBUG_MODE)
 
-    PREPROCESS_DATA = True
     _DATADIR = f"./data/train_infill/cache/{dtype}/{generic_args.exp_name}"
     if not os.path.exists(_DATADIR):
         os.makedirs(_DATADIR)
 
+    logger.info(f"Infill Args: \n {infill_args}")
+
+    PREPROCESS_DATA = True
     if PREPROCESS_DATA:
         augmented_data_path = f"./data/{dtype}-augmented.txt"
         clean_text = []
@@ -81,6 +83,7 @@ def main():
                        "keyword_mask": wm_args.keyword_mask,
                        'exclude_cc': wm_args.exclude_cc
                        }
+        logger.info(f"Masking Options: \n {mask_kwargs}")
         mask_selector = MaskSelector(**mask_kwargs)
         keyword_module = KeywordExtractor(ratio=wm_args.keyword_ratio)
 
@@ -91,13 +94,6 @@ def main():
             shuffle=False
         )
         eval_dataset = pt_dataset['test']
-        if DEBUG_MODE:
-            eval_dataset = eval_dataset.train_test_split(
-            train_size=0.8,
-            test_size=0.2,
-            shuffle=False)
-            eval_dataset = eval_dataset['test']
-
         train_bs = 64 if not DEBUG_MODE else 8
         train_dataset = pt_dataset['train']
 
@@ -115,6 +111,8 @@ def main():
                 else:
                     featurize_for_masking_random(batch, infill_args.masking_p, save_dir)
                 progress_bar.update(1)
+            if DEBUG_MODE and b_idx == 1:
+                break
 
         logger.info("Processing eval. data...")
         last_idx = len(eval_dataset) // train_bs + 1
@@ -129,6 +127,8 @@ def main():
                 else:
                     featurize_for_masking_random(batch, infill_args.masking_p, save_dir)
                 progress_bar.update(1)
+            if DEBUG_MODE and b_idx == 1:
+                break
 
     if len(glob.glob(os.path.join(_DATADIR, "*.pkl"))) == 0:
         logger.info(f"Data does not exit in {_DATADIR}. Ending process")

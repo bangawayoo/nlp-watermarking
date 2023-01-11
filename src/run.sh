@@ -1,23 +1,23 @@
-export CUDA_VISIBLE_DEVICES=1
-DTYPE="dracula"
-NAME="new/comparison-with-awt"
+export CUDA_VISIBLE_DEVICES=0
+DTYPE="wikitext"
+NAME="new/dep-wo-cc"
 SPACYM="en_core_web_sm"
-CKPT=""
+CKPT="ckpt/wikitext/mask\=ours-dep-without-cc/last"
 
-KR=0.01
-TOPK=2
+KR=0.06
+TOPK=4
 
 MASK_S="grammar"
 MASK_ORDER_BY="dep"
 K_MASK="adjacent"
-EXCLUDE_CC="F"
-
+EXCLUDE_CC="T"
 
 mkdir -p "results/ours/${DTYPE}/${NAME}"
 cp "$0" "results/ours/${DTYPE}/${NAME}"
 
 METRIC_ONLY="F"
-NSAMPLE=1000
+NSAMPLE=5000
+
 EMBED="T"
 if [ $EMBED = "T" ] ; then
   python ./ours.py \
@@ -35,6 +35,7 @@ if [ $EMBED = "T" ] ; then
         --keyword_mask $K_MASK -exclude_cc $EXCLUDE_CC -metric_only $METRIC_ONLY
 fi
 
+
 EXTRACT="F"
 if [ $EXTRACT = "T" ] ; then
   python ./ours.py -do_watermark T -extract T -extract_corrupted F\
@@ -50,7 +51,7 @@ if [ $EXTRACT = "T" ] ; then
         --keyword_mask $K_MASK -exclude_cc $EXCLUDE_CC
 fi
 
-CORRUPT="T"
+CORRUPT="F"
 if [ $CORRUPT = "T" ] ; then
   SS_THRES=0.98
   ATTACKM="deletion insertion substitution"

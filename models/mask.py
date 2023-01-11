@@ -14,11 +14,13 @@ class MaskSelector:
                              'dative', 'xcomp', 'pcomp', 'nsubj', 'quantmod', 'conj', 'nsubjpass', 'punct', 'poss',
                              'dobj', 'nmod', 'attr', 'csubjpass', 'meta', 'pobj', 'amod', 'npadvmod', 'appos', 'acomp',
                              'compound', 'oprd', 'nummod']
+
         if self.kwargs.get('exclude_cc', False):
             self.dep_ordering.remove("cc")
             self.dep_ordering = self.dep_ordering[:15] + ["cc"]
         else:
             self.dep_ordering = self.dep_ordering[:15]
+
 
         self.pos_ordering = ['CCONJ', 'AUX', 'ADP', 'SCONJ', 'DET', 'SPACE', 'INTJ', 'PRON', 'SYM', 'VERB', 'ADV',
                              'PUNCT', 'X', 'PART', 'NOUN', 'ADJ', 'PROPN', 'NUM']

@@ -1,4 +1,72 @@
 ##
+from utils.dataset_utils import get_result_txt, preprocess_txt, preprocess2sentence, get_dataset
+
+dtype = "wikitext"
+filename = "watermarked.txt"
+
+list_of_files = [f'results/ours/{dtype}/new/dep/{filename}', f'results/ours/{dtype}/new/dep-wo-cc/{filename}',
+                 f'results/context-ls/{dtype}/paper/{filename}']
+list_of_watermarks = [get_result_txt(i) for i in list_of_files]
+list_of_sets = []
+
+corpus, test_corpus, num_sample = get_dataset(dtype)
+test_cover_texts = preprocess_txt(test_corpus)
+test_cover_texts = preprocess2sentence(test_cover_texts, dtype + "-test", 0)
+
+for idx, watermarked in enumerate(list_of_watermarks):
+    embedded_indices = []
+    for idx, (c_idx, sen_idx, sub_idset, sub_idx, clean_wm_text, key, msg) in enumerate(watermarked):
+        if len(msg) > 0:
+            hash_str = f"{c_idx},{sen_idx}"
+            hash_str = f"{idx}"
+            embedded_indices.append(hash_str)
+    embedded_indices = set(embedded_indices)
+    list_of_sets.append(embedded_indices)
+
+common = list_of_sets[0]
+for idx, _ in enumerate(list_of_sets[:-1]):
+    common = common.intersection(list_of_sets[idx+1])
+
+print(f"{len(common)} watermark samples available")
+
+NAME = "samples"
+SAVE_DIR = f"samples/{dtype}-{NAME}.csv"
+f = open(SAVE_DIR, "w", newline="")
+
+import csv
+DELIMITER = '|'
+wr = csv.writer(f, delimiter=DELIMITER, quoting=csv.QUOTE_MINIMAL)
+result = []
+
+result.append(["idx", "Original"] + list_of_files)
+watermarked = list_of_watermarks[0]
+for idx, (c_idx, sen_idx, sub_idset, sub_idx, clean_wm_text, key, msg) in enumerate(watermarked):
+    if str(idx) in common:
+        line = []
+        print(idx)
+        line.append(str(idx))
+        print("Original")
+        print(test_cover_texts[c_idx][sen_idx], end="\n\n")
+        line.append(test_cover_texts[c_idx][sen_idx].text)
+        print(list_of_files[0])
+        print(clean_wm_text, end="\n\n")
+        line.append(clean_wm_text)
+        for f_idx, wm_others in enumerate(list_of_watermarks[1:]):
+            c_idx, sen_idx, sub_idset, sub_idx, clean_wm_text, key, msg = wm_others[idx]
+            print(list_of_files[f_idx+1])
+            print(clean_wm_text, end="\n\n")
+            line.append(clean_wm_text)
+        result.append(line)
+        # wr.writerow(line)
+        print("\n")
+
+import random
+random.shuffle(result)
+wr.writerow(["idx", "Original", "dep", "wo-cc", "context-ls"])
+wr.writerows(result)
+f.close()
+
+
 
 ##
 import os.path
