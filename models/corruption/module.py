@@ -9,6 +9,7 @@ import time
 from augmenter import Augmenter
 from sentence_transformers import SentenceTransformer
 from textattack.transformations import WordInsertionMaskedLM, WordSwapMaskedLM, WordDeletion
+from textattack.transformations.word_swaps.word_swap_neighboring_character_swap import WordSwapNeighboringCharacterSwap
 # from textattack.constraints.semantics.sentence_encoders.sentence_encoder import SentenceEncoder
 
 import tensorflow as tf
@@ -44,13 +45,16 @@ class Attacker:
             self.num_sentence *= num_corr_per_sentence
 
         use_thres = constraint_kwargs.get("use", 0)
-        constraints = [
-            SentenceTransformerEncoder(
-                threshold=use_thres,
-                metric="cosine",
-                compare_against_original=True,
-                window_size=None)
-        ]
+        if use_thres == 0:
+            constraints = []
+        else:
+            constraints = [
+                SentenceTransformerEncoder(
+                    threshold=use_thres,
+                    metric="cosine",
+                    compare_against_original=True,
+                    window_size=None)
+            ]
         if args is not None and args.target_method == "awt":
             constraints = constraints + [StopwordModificationForAWT()]
 
@@ -82,8 +86,16 @@ class Attacker:
                                                     transformations_per_example=transformations_per_example,
                                                     constraints=constraints,
                                                     pct_words_to_swap=attack_percentage, fast_augment=True))
-        if attack_type == "char-based" or augment_data_flag:
-            pass
+        if attack_type == "char" or augment_data_flag:
+            transformation = WordSwapNeighboringCharacterSwap(
+                random_one=True,
+                skip_first_char=False,
+                skip_last_char=False
+            )
+            self.augmenter_choices.append(Augmenter(transformation=transformation,
+                                                    transformations_per_example=transformations_per_example,
+                                                    constraints=constraints,
+                                                    pct_words_to_swap=attack_percentage, fast_augment=True))
 
         if attack_type == "deletion" or augment_data_flag:
             transformation = WordDeletion()

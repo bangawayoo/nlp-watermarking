@@ -1,16 +1,16 @@
 export CUDA_VISIBLE_DEVICES=0
-DTYPE="wikitext"
-NAME="new/dep-wo-cc"
+DTYPE="imdb"
+NAME="new/no-semantic-constraint"
 SPACYM="en_core_web_sm"
-CKPT="ckpt/wikitext/mask\=ours-dep-without-cc/last"
+CKPT=""
 
-KR=0.06
+KR=0.05
 TOPK=4
 
 MASK_S="grammar"
 MASK_ORDER_BY="dep"
 K_MASK="adjacent"
-EXCLUDE_CC="T"
+EXCLUDE_CC="F"
 
 mkdir -p "results/ours/${DTYPE}/${NAME}"
 cp "$0" "results/ours/${DTYPE}/${NAME}"
@@ -18,7 +18,7 @@ cp "$0" "results/ours/${DTYPE}/${NAME}"
 METRIC_ONLY="F"
 NSAMPLE=5000
 
-EMBED="T"
+EMBED="F"
 if [ $EMBED = "T" ] ; then
   python ./ours.py \
         -do_watermark T \
@@ -51,11 +51,11 @@ if [ $EXTRACT = "T" ] ; then
         --keyword_mask $K_MASK -exclude_cc $EXCLUDE_CC
 fi
 
-CORRUPT="F"
+CORRUPT="T"
 if [ $CORRUPT = "T" ] ; then
-  SS_THRES=0.98
-  ATTACKM="deletion insertion substitution"
-  PCT_RANGE="0.025 0.05"
+  SS_THRES=0.0
+  ATTACKM="insertion substitution deletion"
+  PCT_RANGE="0.05 0.025"
   NUM_SENTENCE=1000
 
   SEED=$(seq 0 0)
@@ -65,8 +65,7 @@ if [ $CORRUPT = "T" ] ; then
     do
     for attm in $ATTACKM
       do
-        if [ $attm = "deletion" ]
-        then
+        if [ $attm = "deletion" ] || [ $attm = "char" ]; then
           ncps=1
         else
           ncps=5
@@ -91,4 +90,3 @@ if [ $CORRUPT = "T" ] ; then
     done
   done
 fi
-

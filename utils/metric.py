@@ -44,7 +44,6 @@ class Metric:
         wm_batch = []
         sr_score = []
         sr_dist = []
-
         for idx, (c_idx, sen_idx, sub_idset, sub_idx, wm_text, key, msg) in enumerate(watermarked):
             # only include watermarks that are altered from the original
             if len(msg) > 0:
@@ -64,7 +63,6 @@ class Metric:
                 sr_dist.extend(l2dist.tolist())
                 batch = []
                 wm_batch = []
-
         return sr_score, sr_dist
 
     def compute_nli(self, path2wm, cover_texts=None):
