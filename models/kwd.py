@@ -9,11 +9,6 @@ import yake
 from config import stop
 
 
-#TODO:
-# May need to return all possible keywords, then take the topk
-# after seeing if mask can be created with them to ensure designated number of masks are created.
-
-
 # Find Proper Noun on sentence level.
 # Compute Yake on sentence level.
 # Compute Tf-idf on sample level

@@ -1,15 +1,15 @@
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=0
 DTYPE="imdb"
-NAME="new/keyword-higher-cr"
+NAME="without-corruption"
 SPACYM="en_core_web_sm"
 CKPT=""
 
 KR=0.05
 TOPK=4
 
-MASK_S="keyword_connected"
+# Syntactic component
+MASK_S="grammar"
 MASK_ORDER_BY="dep"
-K_MASK="adjacent"
 EXCLUDE_CC="F"
 
 mkdir -p "results/ours/${DTYPE}/${NAME}"
@@ -35,28 +35,12 @@ if [ $EMBED = "T" ] ; then
         --keyword_mask $K_MASK -exclude_cc $EXCLUDE_CC -metric_only $METRIC_ONLY
 fi
 
-
-EXTRACT="F"
-if [ $EXTRACT = "T" ] ; then
-  python ./ours.py -do_watermark T -extract T -extract_corrupted F\
-        --exp_name $NAME \
-        --dtype $DTYPE \
-        --num_sample $NSAMPLE \
-        --spacy_model $SPACYM \
-        --model_ckpt $CKPT \
-        --keyword_ratio $KR \
-        --topk $TOPK \
-        --mask_select_method $MASK_S \
-        --mask_order_by $MASK_ORDER_BY \
-        --keyword_mask $K_MASK -exclude_cc $EXCLUDE_CC
-fi
-
 CORRUPT="T"
 if [ $CORRUPT = "T" ] ; then
   SS_THRES=0.98
   ATTACKM="insertion substitution deletion"
-  PCT_RANGE="0.075 0.1"
-  NUM_SENTENCE=500
+  PCT_RANGE="0.025"
+  NUM_SENTENCE=1000
 
   SEED=$(seq 0 0)
   for seed in $SEED

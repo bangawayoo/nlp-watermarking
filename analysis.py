@@ -1,7 +1,7 @@
 ##
 from utils.dataset_utils import get_result_txt, preprocess_txt, preprocess2sentence, get_dataset
-
-dtype = "wuthering_heights"
+from datasets import load_dataset
+dtype = "wikitext"
 filename = "watermarked.txt"
 
 list_of_files = [f'results/ours/{dtype}/new/dep/{filename}', f'results/ours/{dtype}/new/dep-wo-cc/{filename}',

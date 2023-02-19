@@ -10,9 +10,6 @@ python -m nltk.downloader punkt
 
 pip install -r requirements.txt
 
-#conda create -n ta
-#conda init bash
-#conda activate ta
 pip install textattack[tensorflow]
 
 echo "export NLTK_DATA=/workspace/.cache/NLTK_DATA" >> ~/.bashrc
