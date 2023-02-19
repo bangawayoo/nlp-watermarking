@@ -6,6 +6,8 @@ This repo contains the source code for reproducing the results of
 This work proposes a natural language watermarking framework that is robust against various types of corruption by 
 exploring invariant features of natural language. 
 
+![Figure1](visualization/fig/fig1.png)
+
 It also includes our implementation of an earlier work **ContextLS** 
 (*Yang, Xi, et al. "Tracing text provenance via context-aware lexical substitution." 
 Proceedings of the AAAI Conference on Artificial Intelligence. Vol. 36. No. 10. 2022.*).
