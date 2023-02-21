@@ -59,7 +59,8 @@ MASKING_P: masking proportion (fixed to 0.15), this is only relevant when MASKIN
 OPTIM_TOPK: whether to optimize only the topk predicted tokens (fixed to true) 
 
 ```
-Download the checkpoint to the model finetuned on IMDB [here]().
+Download the checkpoint to the model finetuned on IMDB [here](https://drive.google.com/file/d/1Tibqqm5QnkDAM6mPqcqKiqfN1K3k5fpE/view?usp=share_link).
+To use this checkpoint, provide the path to the file to `$CKPT`.
 
 ## Citation 
 ```

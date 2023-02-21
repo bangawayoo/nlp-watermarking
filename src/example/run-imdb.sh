@@ -1,6 +1,6 @@
 export CUDA_VISIBLE_DEVICES=0
 DTYPE="imdb"
-NAME="without-corruption"
+NAME="dep-example"
 SPACYM="en_core_web_sm"
 CKPT=""
 
@@ -11,6 +11,7 @@ TOPK=4
 MASK_S="grammar"
 MASK_ORDER_BY="dep"
 EXCLUDE_CC="F"
+K_MASK="na"
 
 mkdir -p "results/ours/${DTYPE}/${NAME}"
 cp "$0" "results/ours/${DTYPE}/${NAME}"
@@ -35,7 +36,6 @@ if [ $EMBED = "T" ] ; then
         --keyword_mask $K_MASK -exclude_cc $EXCLUDE_CC -metric_only $METRIC_ONLY
 fi
 
-
 EXTRACT="T"
 if [ $EXTRACT = "T" ] ; then
   python ./ours.py -do_watermark T -extract T -extract_corrupted F\
@@ -53,10 +53,14 @@ fi
 
 
 # Keyword component
+NAME="keyword-example"
 MASK_S="keyword_connected"
 MASK_ORDER_BY="dep"
 K_MASK="adjacent"
 EXCLUDE_CC="F"
+
+KR=0.06
+TOPK=4
 
 mkdir -p "results/ours/${DTYPE}/${NAME}"
 cp "$0" "results/ours/${DTYPE}/${NAME}"

@@ -11,6 +11,7 @@ TOPK=4
 MASK_S="grammar"
 MASK_ORDER_BY="dep"
 EXCLUDE_CC="F"
+K_MASK="na"
 
 mkdir -p "results/ours/${DTYPE}/${NAME}"
 cp "$0" "results/ours/${DTYPE}/${NAME}"

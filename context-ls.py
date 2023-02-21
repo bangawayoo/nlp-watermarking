@@ -1,3 +1,6 @@
+# Key functions written by Wonhyk Ahn (whahnize@gmail.com)
+# Refactoring and edits by KiYoon
+
 from functools import reduce
 import math
 import os
