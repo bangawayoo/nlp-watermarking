@@ -1,9 +1,8 @@
 # Towards Robust Natural Language Watermarking through Invariant Features
 This repo contains the source code for reproducing the results of 
-
 **Who Leaked My Document? Towards Robust Natural Language Watermarking through Invariant Features**. 
-*KiYoon Yoo*, *WonHyuk Ahn*, *Jiho Jang*, *Nojun Kwak*. <br>
-This work proposes a natural language watermarking framework that is robust against various types of corruption by 
+*KiYoon Yoo*, *WonHyuk Ahn*, *Jiho Jang*, *Nojun Kwak*. <br />
+Our work proposes a natural language watermarking framework that is robust against various types of corruption by 
 exploring invariant features of natural language. 
 
 ![Figure1](visualization/fig/fig1.png)
@@ -33,16 +32,17 @@ Then enter the setup command in your virtual environment.
 ## Reproducing Results
 ### Watermarking
 Shell scripts for watermarking (embed and extract) under corruption and without corruption 
-is in `./src/example/`. Change the appropriate parameters to replicate the other results. 
+are in `./src/example/`.<br />
+Change the appropriate parameters to replicate the other results. 
 Below we explain some important variables related to our framework in the shell script: <br>
 ```
 SPACYM: type of spacy model used for dependency parsing
 KR: keyword ratio that determines the number of keywords and masks (see Table 11 for configuration)
 TOPK: topk infill words used to infill selected masks (see Table 11 for configuration)
-MASK_S: mask selection method,  {keyword_connected, grammar}
+MASK_S: mask selection method, choose from {keyword_connected, grammar}
 MASK_ORDR_BY: ordering of masks by {dep, pos}. This is only relevant when using dependency component
 EXCLUDE_CC: exlucde the cc dependency as detailed in Section 5.2
-K_MASK: how mask is selected when using keyword component; only relvant when using keyword component, {adjacent, child} 
+K_MASK: how mask is selected when using keyword component; only relvant when using keyword component, choose from {adjacent, child} 
 
 # Below are other variables
 CKPT: checkpoint to the finetuned robust infill model 
@@ -53,13 +53,13 @@ and $KR to the corresponding value will train the infill model used in the main 
 Some specific variables for training the infill model are:
 ```
 EPOCH: number of epochs to train (fixed to 100 for our experiments)
-KL_TYPE: type of kl, {forward, reverse}
-MASKING_TYPE: method to mask tokens (Sec. 3.3), {ours, random}
-MASKING_P: masking proportion (fixed to 0.15), this is only relevant when MASKING_TYPE=random
+KL_TYPE: type of kl, choose from {forward, reverse}
+MASKING_TYPE: method to mask tokens (Sec. 3.3), choose from {ours, random}
+MASKING_P: masking proportion (fixed to 0.15 for our experiments), this is only relevant when MASKING_TYPE=random
 OPTIM_TOPK: whether to optimize only the topk predicted tokens (fixed to true) 
-
 ```
-Download the checkpoint to the model finetuned on IMDB [here](https://drive.google.com/file/d/1Tibqqm5QnkDAM6mPqcqKiqfN1K3k5fpE/view?usp=share_link).
+
+Example checkpoint to the model finetuned on IMDB [here](https://drive.google.com/file/d/1Tibqqm5QnkDAM6mPqcqKiqfN1K3k5fpE/view?usp=share_link).
 To use this checkpoint, provide the path to the file to `$CKPT`.
 
 ## Citation 
