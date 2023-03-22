@@ -263,7 +263,7 @@ class InfillModel:
 
     def _init_dataset(self, dtype="imdb"):
         cover_texts = test_cover_texts = None
-        if dtype is None:
+        if dtype is None or dtype == "custom":
             return cover_texts, test_cover_texts
         start_sample_idx = 0
         corpus, test_corpus, num_sample = get_dataset(dtype)
