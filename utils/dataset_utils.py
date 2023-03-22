@@ -193,7 +193,7 @@ def get_result_txt(result_txt, sep='\t'):
 
 
 def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample=3000,
-                        population_size=1000, cutoff_q=(0.05, 0.95),
+                        population_size=3000, cutoff_q=(0.05, 0.95),
                         spacy_model="en_core_web_sm"):
     population_size = max(population_size, start_sample_idx + num_sample)
     id = f"{corpus_name}-{spacy_model}"
@@ -203,7 +203,7 @@ def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample=3000,
       os.makedirs(CACHE_DIR, exist_ok=True)
     file_dir = os.path.join(CACHE_DIR, id+".pkl")
 
-    if os.path.isfile(file_dir):
+    if False:
       logger.info(f"Using cache {file_dir}")
       with open(file_dir, "rb") as f:
         docs = pickle.load(f)
@@ -244,7 +244,7 @@ def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample=3000,
     num_processed = 0
 
     for sample in sentence_tokenized[start_sample_idx: start_sample_idx+num_sample]:
-        sentences = [sen for sen in sample if l_threshold < len(sen) < u_threshold]
+        sentences = [sen for sen in sample if l_threshold <= len(sen) <= u_threshold]
         num_skipped += len(sample) - len(sentences)
         num_processed += len(sentences)
         filtered.append(sentences)
@@ -264,7 +264,7 @@ def get_dataset(dtype):
         corpus = load_dataset(dtype)['train']['text']
         test_corpus = load_dataset(dtype)['test']['text']
         train_num_sample = len(corpus)
-        test_num_sample = 1000
+        test_num_sample = 2000
     elif dtype == "wikitext":
         corpus = load_dataset(dtype, 'wikitext-2-raw-v1')['train']['text']
         test_corpus = load_dataset(dtype, 'wikitext-2-raw-v1')['test']['text']

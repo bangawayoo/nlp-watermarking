@@ -43,7 +43,6 @@ for c_idx, sentences in enumerate(cover_texts):
     num_sentence += len(sentences)
     if num_sentence >= num_sample:
         break
-cover_texts = cover_texts[:c_idx+1]
 
 bit_count = 0
 word_count = 0
@@ -93,7 +92,6 @@ if generic_args.embed:
             logger.info(f"{c_idx} {s_idx}")
             keyword = all_keywords[0]
             ent_keyword = entity_keywords[0]
-    
             agg_cwi, agg_probs, tokenized_pt, (mask_idx_pt, mask_idx, mask_word) = model.run_iter(sen, keyword, ent_keyword,
                                                                                                   train_flag=False, embed_flag=True)
             # check if keyword & mask_indices matches
@@ -239,7 +237,7 @@ if generic_args.extract:
             num_corrupted_sen += 1
             sen = spacy_tokenizer(wm_text.strip())
             all_keywords, entity_keywords = model.keyword_module.extract_keyword([sen])
-            # for sanity check, one use the original (uncorrupted) watermarked texts
+            # for sanity check, we use the uncorrupted watermarked texts
             sen_ = spacy_tokenizer(clean_wm_text.strip())
             all_keywords_, entity_keywords_ = model.keyword_module.extract_keyword([sen_])
 

@@ -20,9 +20,10 @@ from utils.metric import Metric
 
 random.seed(1230)
 
+
 def main(cover_text, f, extracting=False):
     encoded_text = tokenizer(cover_text, add_special_tokens=False, truncation=True,
-                             max_length=tokenizer.model_max_length// 2 - 2)
+                             max_length=tokenizer.model_max_length // 2 - 2)
     word_ids = encoded_text._encodings[0].word_ids
     watermarking_wordset = [None] * len(encoded_text['input_ids'])
     substituted_idset = []

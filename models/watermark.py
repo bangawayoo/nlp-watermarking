@@ -262,6 +262,9 @@ class InfillModel:
         self.metric = {'entail_score': [], 'num_subs': [], 'train_entail_score': []}
 
     def _init_dataset(self, dtype="imdb"):
+        cover_texts = test_cover_texts = None
+        if dtype is None:
+            return cover_texts, test_cover_texts
         start_sample_idx = 0
         corpus, test_corpus, num_sample = get_dataset(dtype)
 
