@@ -62,6 +62,15 @@ OPTIM_TOPK: whether to optimize only the topk predicted tokens (fixed to true)
 Example checkpoint to the model finetuned on IMDB [here](https://drive.google.com/file/d/1Tibqqm5QnkDAM6mPqcqKiqfN1K3k5fpE/view?usp=share_link).
 To use this checkpoint, provide the path to the file to `$CKPT`.
 
+
+## Watermarking Your Content
+Instead of running it on a public dataset, you can try watermarking your own text with some message.
+To do this, go to `./demo.py` and change the following variables:
+`
+raw_text, message.
+`
+
+
 ## Citation 
 ```
 

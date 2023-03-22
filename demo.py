@@ -18,7 +18,6 @@ from utils.logging import getLogger
 from utils.metric import Metric
 from utils.misc import compute_ber
 
-random.seed(3)
 
 infill_parser = WatermarkArgs()
 generic_parser = GenericArgs()
@@ -42,7 +41,13 @@ _, cover_texts = model.return_dataset()
 
 from utils.dataset_utils import preprocess2sentence
 raw_text = """
-Demo text 
+This will work on unixes including OS X, Linux and Windows (provided you use ANSICON, 
+or in Windows 10 provided you enable VT100 emulation). 
+There are ANSI codes for setting the color, moving the cursor, and more.
+If you are going to get complicated with this (and it sounds like you are if you are writing a game), 
+you should look into the "curses" module, which handles a lot of the complicated parts of this for you. 
+The Python Curses HowTO is a good introduction.
+Source: https://stackoverflow.com/questions/287871/how-do-i-print-colored-text-to-the-terminal
 """
 message = "1111110100"
 cover_texts = preprocess2sentence([raw_text], corpus_name="custom",
@@ -156,16 +161,22 @@ if generic_args.embed:
 
                 keys = []
                 wm_tokenized = spacy_tokenizer(wm_text)
+                text2print = [t.text_with_ws for t in wm_tokenized]
                 for m_idx in mask_idx:
                     keys.append(wm_tokenized[m_idx].text)
+                    text2print[m_idx] = f"\033[92m{text2print[m_idx]}\033[00m"
                 keys_str = ", ".join(keys)
                 message_str = ' '.join(message_str) if len(message_str) else ""
                 wr.write(f"{c_idx}\t{s_idx}\t \t \t"
                          f"{''.join(wm_text)}\t{keys_str}\t{message_str}\n")
+                print(sen)
+                print("".join(text2print))
             else:
                 original_text = ''.join(tokenized_text)
                 wr.write(f"{c_idx}\t{s_idx}\t \t \t"
                          f"{original_text}\t \t \n")
+                print(sen)
+
 
             if candidate_kwd_cnt > 0:
                 upper_bound += math.log2(candidate_kwd_cnt)

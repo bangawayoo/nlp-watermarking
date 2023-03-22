@@ -20,7 +20,7 @@ NSAMPLE=100
 
 EMBED="T"
 if [ $EMBED = "T" ] ; then
-  python ./ours.py \
+  python ./demo.py \
         -do_watermark T \
         -embed T \
         --dtype $DTYPE \
@@ -36,7 +36,7 @@ if [ $EMBED = "T" ] ; then
 fi
 
 
-EXTRACT="T"
+EXTRACT="F"
 if [ $EXTRACT = "T" ] ; then
   python ./ours.py -do_watermark T -extract T -extract_corrupted F\
         --exp_name $NAME \
@@ -51,7 +51,7 @@ if [ $EXTRACT = "T" ] ; then
         --keyword_mask $K_MASK -exclude_cc $EXCLUDE_CC
 fi
 
-CORRUPT="T"
+CORRUPT="F"
 if [ $CORRUPT = "T" ] ; then
   SS_THRES=0.98
   ATTACKM="insertion substitution deletion"
