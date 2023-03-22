@@ -44,6 +44,8 @@ for c_idx, sentences in enumerate(cover_texts):
     if num_sentence >= num_sample:
         break
 
+cover_texts = cover_texts[:c_idx]
+
 bit_count = 0
 word_count = 0
 upper_bound = 0
