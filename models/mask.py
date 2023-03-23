@@ -8,7 +8,7 @@ class MaskSelector:
             self.kwargs[k] = v
 
         self.num_max_mask = []
-
+        self.custom_keywords = kwargs.get("custom_keywords", [])
         self.dep_ordering = ['expl', 'cc', 'auxpass', 'agent', 'mark', 'aux', 'prep', 'det', 'prt', 'intj', 'parataxis',
                              'predet', 'case', 'csubj', 'acl', 'advcl', 'ROOT', 'preconj', 'ccomp', 'relcl', 'advmod',
                              'dative', 'xcomp', 'pcomp', 'nsubj', 'quantmod', 'conj', 'nsubjpass', 'punct', 'poss',
@@ -115,7 +115,7 @@ class MaskSelector:
         return mask_idx, mask_word
 
     def _check_mask_candidate(self, mask_cand, mask_word, keyword=[], ent_keyword=[],
-                                    keyword_ablate=False, custom_keywords=[]):
+                                    keyword_ablate=False):
         def _contains_punct(mask_cand):
             return any(p in mask_cand.text for p in punctuation)
 
@@ -128,7 +128,7 @@ class MaskSelector:
 
         if mask_cand not in keyword and mask_cand not in mask_word \
                 and mask_cand not in ent_keyword and not mask_cand.is_punct and not mask_cand.pos_ == "PART"\
-                and not _contains_punct(mask_cand) and mask_cand.text not in custom_keywords:
+                and not _contains_punct(mask_cand) and mask_cand.text not in self.custom_keywords:
             return True
         else:
             return False
