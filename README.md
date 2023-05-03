@@ -1,7 +1,7 @@
 # Towards Robust Natural Language Watermarking through Invariant Features
 This repo contains the source code for reproducing the results of 
-**Who Leaked My Document? Towards Robust Natural Language Watermarking through Invariant Features**. 
-*KiYoon Yoo*, *WonHyuk Ahn*, *Jiho Jang*, *Nojun Kwak*. <br />
+**Robust Natural Language Watermarking through Invariant Features**. 
+*KiYoon Yoo*, *WonHyuk Ahn*, *Jiho Jang*, *Nojun Kwak*. **ACL 2023**. <br />
 Our work proposes a natural language watermarking framework that is robust against various types of corruption by 
 exploring invariant features of natural language. 
 
