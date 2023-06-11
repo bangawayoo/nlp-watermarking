@@ -1,7 +1,4 @@
-# Towards Robust Natural Language Watermarking through Invariant Features
-This repo contains the source code for reproducing the results of 
-**Robust Natural Language Watermarking through Invariant Features**. 
-*KiYoon Yoo*, *WonHyuk Ahn*, *Jiho Jang*, *Nojun Kwak*. **ACL 2023**. <br />
+# Robust Multi-bit Natural Language Watermarking through Invariant Features (ACL 2023)
 Our work proposes a natural language watermarking framework that is robust against various types of corruption by 
 exploring invariant features of natural language. 
 
@@ -17,17 +14,14 @@ Some directories and files to note:
 keyword extracting, dependency parser, mask selection, corruption, etc.
 - [./utils/](utils) contains utility modules for preprocessing the dataset, mask infilling, 
 logging, computing metrics, and ContextLS as well. 
-- [./src/](src) contains shell scripts for running experiments.
+- [./scripts/](scripts) contains shell scripts for running experiments.
 - [./ours.py](ours.py) is main script for embedding and extracting watermarks. 
 - [./context-ls.py](context-ls.py) is the script for embedding and extracting for ContextLS.
 
 
 ## Getting Started 
-After building the docker image with the Dockerfile, setup the environment by 
+After installing `torch` and `transformers`, setup the environment by 
 `bash setup.sh` in the container. <br>
-Alternatively, you can pull official docker image `huggingface/transformers-pytorch-gpu` or 
-manually install `miniconda` and `transformers`. 
-Then enter the setup command in your virtual environment.   
 
 ## Reproducing Results
 ### Watermarking
@@ -73,6 +67,12 @@ raw_text, message.
 
 ## Citation 
 ```
-
-
+@misc{yoo2023robust,
+    title={Robust Natural Language Watermarking through Invariant Features},
+    author={KiYoon Yoo and Wonhyuk Ahn and Jiho Jang and Nojun Kwak},
+    year={2023},
+    eprint={2305.01904},
+    archivePrefix={arXiv},
+    primaryClass={cs.CL}
+}
 ```

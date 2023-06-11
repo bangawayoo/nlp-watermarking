@@ -33,7 +33,8 @@ class InfillModel:
             self.logger = getLogger("INFILL-WATERMARK")
         self.device = torch.device('cuda')
         self.args = args
-        self.train_d, self.test_d = self._init_dataset(args.dtype)
+        if args.dtype:
+            self.train_d, self.test_d = self._init_dataset(args.dtype)
         if args.train_infill:
             self.grad_cnt = 0
             params = [p for p in self.lm_head.parameters()]

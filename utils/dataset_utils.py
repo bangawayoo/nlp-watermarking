@@ -194,7 +194,7 @@ def get_result_txt(result_txt, sep='\t'):
 
 def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample=3000,
                         population_size=3000, cutoff_q=(0.05, 0.95),
-                        spacy_model="en_core_web_sm"):
+                        spacy_model="en_core_web_sm", use_cache=True):
     population_size = max(population_size, start_sample_idx + num_sample)
     id = f"{corpus_name}-{spacy_model}"
     if corpus_name in ['dracula']:
@@ -203,7 +203,7 @@ def preprocess2sentence(corpus, corpus_name, start_sample_idx, num_sample=3000,
       os.makedirs(CACHE_DIR, exist_ok=True)
     file_dir = os.path.join(CACHE_DIR, id+".pkl")
 
-    if False:
+    if use_cache and os.path.isfile(file_dir):
       logger.info(f"Using cache {file_dir}")
       with open(file_dir, "rb") as f:
         docs = pickle.load(f)
