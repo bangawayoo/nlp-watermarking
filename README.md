@@ -31,7 +31,7 @@ To do this, go to `./demo.py` and change the following variables:
 raw_text, custom_keywords
 `.
 You can try out the different configurations (e.g. components, keyword ratios, etc)
-or run as is by `python ./demo.py`.
+or run it with the default setting by `python ./demo.py`.
 
 ## Reproducing Results
 ### Watermarking

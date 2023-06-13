@@ -44,8 +44,8 @@ class InfillModel:
                                  'log_iter_interval': 1000
                                  }
 
-        self.tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
-        self.lm_head = AutoModelForMaskedLM.from_pretrained("bert-base-cased").to(self.device)
+        self.tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+        self.lm_head = AutoModelForMaskedLM.from_pretrained(args.model_name).to(self.device)
         self.call_to_lm = 0
         if args.model_ckpt:
             if args.model_ckpt.endswith(".pth"):

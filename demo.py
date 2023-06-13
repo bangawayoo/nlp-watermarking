@@ -20,6 +20,10 @@ infill_args, _ = infill_parser.parse_known_args()
 infill_args.mask_select_method = "grammar"
 infill_args.mask_order_by = "dep"
 infill_args.exclude_cc = True
+infill_args.topk = 2
+infill_args.dtype = None
+infill_args.model_name = 'bert-large-cased'
+
 generic_args, _ = generic_parser.parse_known_args()
 
 from utils.dataset_utils import preprocess2sentence
@@ -39,7 +43,7 @@ three corruption types, and two corruption ratios
 cover_texts = preprocess2sentence([raw_text], corpus_name="custom",
                                   start_sample_idx=0, cutoff_q=(0.0, 1.0), use_cache=False)
 # you can add your own entity / keyword that should NOT be masked.
-# This list will be need to be saved when extracting
+# This list will need to be saved when extracting
 infill_args.custom_keywords = ["watermarking", "watermark"]
 
 DEBUG_MODE = generic_args.debug_mode
@@ -51,7 +55,6 @@ num_sample = generic_args.num_sample
 spacy_tokenizer = spacy.load(generic_args.spacy_model)
 if "trf" in generic_args.spacy_model:
     spacy.require_gpu()
-infill_args.dtype = None
 model = InfillModel(infill_args, dirname=dirname)
 
 bit_count = 0
@@ -127,6 +130,7 @@ for c_idx, sentences in enumerate(cover_texts):
 
         punct_removed = sen.text.translate(str.maketrans(dict.fromkeys(string.punctuation)))
         word_count += len([i for i in punct_removed.split(" ") if i not in stop])
+        print(f"***Sentence {s_idx}***")
         if len(valid_watermarks) > 1:
             bit_count += math.log2(len(valid_watermarks))
             for vw in valid_watermarks:
@@ -157,9 +161,10 @@ for c_idx, sentences in enumerate(cover_texts):
         print(f"Given message longer than capacity. Truncating...: {len(message)}>{available_bit}")
         message = message[:available_bit]
     message_decimal = int(message, 2)
+    # breakpoint()
     cnt = 0
-    watermarked_text = ""
     available_candidates = product(*corpus_level_watermarks)
+    watermarked_text = next(available_candidates)
     while cnt < message_decimal:
         cnt += 1
         watermarked_text = next(available_candidates)
