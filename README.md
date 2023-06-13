@@ -71,11 +71,11 @@ To use this checkpoint, provide the path to the file to `$CKPT`.
 ## Citation 
 ```
 @misc{yoo2023robust,
-    title={Robust Natural Language Watermarking through Invariant Features},
-    author={KiYoon Yoo and Wonhyuk Ahn and Jiho Jang and Nojun Kwak},
-    year={2023},
-    eprint={2305.01904},
-    archivePrefix={arXiv},
-    primaryClass={cs.CL}
+      title={Robust Multi-bit Natural Language Watermarking through Invariant Features}, 
+      author={KiYoon Yoo and Wonhyuk Ahn and Jiho Jang and Nojun Kwak},
+      year={2023},
+      eprint={2305.01904},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
 }
 ```
