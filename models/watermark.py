@@ -22,7 +22,7 @@ from utils.logging import getLogger
 from models.reward import NLIReward
 from models.kwd import KeywordExtractor
 from models.mask import MaskSelector
-
+from torch import cuda
 
 class InfillModel:
     def __init__(self, args, dirname=None):
@@ -31,7 +31,14 @@ class InfillModel:
                                     dir_=dirname)
         else:
             self.logger = getLogger("INFILL-WATERMARK")
-        self.device = torch.device('cuda')
+        
+        if torch.has_mps:
+            self.device = "mps"
+        elif cuda.is_available():
+            self.device = "cuda"
+        else:
+            self.device = "cpu"
+
         self.args = args
         if args.dtype:
             self.train_d, self.test_d = self._init_dataset(args.dtype)
